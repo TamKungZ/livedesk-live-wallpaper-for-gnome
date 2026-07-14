@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Installs the Phase 1 prototype:
 #   1. builds livedesk-daemon (release) and copies it to ~/.local/bin
-#   2. installs the GNOME Shell extension into ~/.local/share/gnome-shell/extensions
-#   3. compiles its GSettings schema
-#   4. installs (but does not enable) a systemd --user unit for the daemon
+#   2. installs the Livedesk GTK app into ~/.local/bin and applications
+#   3. installs the GNOME Shell extension into ~/.local/share/gnome-shell/extensions
+#   4. compiles its GSettings schema
+#   5. installs (but does not enable) a systemd --user unit for the daemon
 #
 # It does NOT enable the shell extension automatically -- do that with
 # `gnome-extensions enable livedesk@me.tamkungz` and then log out/in
@@ -15,14 +16,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EXT_UUID="livedesk@me.tamkungz"
 EXT_DEST="$HOME/.local/share/gnome-shell/extensions/$EXT_UUID"
 BIN_DEST="$HOME/.local/bin"
+APP_DEST="$HOME/.local/share/applications"
 SYSTEMD_DEST="$HOME/.config/systemd/user"
 
-echo "==> Checking build dependencies (rustc/cargo, pkg-config, GStreamer dev headers)"
-for cmd in cargo rustc pkg-config; do
+echo "==> Checking build dependencies (rustc/cargo, pkg-config, GStreamer dev headers, GJS)"
+for cmd in cargo rustc pkg-config gjs; do
   command -v "$cmd" >/dev/null || {
     echo "Missing '$cmd'. On Debian/Ubuntu:"
-    echo "  sudo apt install cargo rustc pkg-config libgstreamer1.0-dev \\"
-    echo "    libgstreamer-plugins-base1.0-dev libdbus-1-dev"
+    echo "  sudo apt install cargo rustc pkg-config gjs gir1.2-gtk-4.0 gir1.2-adw-1 \\"
+    echo "    libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libdbus-1-dev"
     exit 1
   }
 done
@@ -33,6 +35,11 @@ echo "==> Building livedesk-daemon (release)"
 echo "==> Installing daemon binary to $BIN_DEST"
 mkdir -p "$BIN_DEST"
 install -m 755 "$SCRIPT_DIR/daemon/target/release/livedesk-daemon" "$BIN_DEST/livedesk-daemon"
+
+echo "==> Installing Livedesk app to $BIN_DEST"
+install -m 755 "$SCRIPT_DIR/app/livedesk.js" "$BIN_DEST/livedesk"
+mkdir -p "$APP_DEST"
+install -m 644 "$SCRIPT_DIR/data/me.tamkungz.Livedesk.desktop" "$APP_DEST/me.tamkungz.Livedesk.desktop"
 
 echo "==> Installing GNOME Shell extension to $EXT_DEST"
 mkdir -p "$EXT_DEST"
@@ -58,8 +65,9 @@ cat <<'EOF'
 
 Done. Remaining manual steps:
 
-  1. Edit ~/.config/livedesk/config.json to point at your video
-     (and match "width"/"height" to your monitor's real resolution).
+  1. Open the Livedesk app:
+       livedesk
+     Pick your video and apply it to the daemon.
 
   2. Start the daemon now, and enable it for future logins:
        systemctl --user enable --now livedesk-daemon
@@ -70,9 +78,8 @@ Done. Remaining manual steps:
      extension to be picked up; on X11, Alt+F2 -> 'r' -> Enter reloads
      GNOME Shell instead.
 
-  4. Open Extension preferences (via the Extensions app, or
-     `gnome-extensions prefs livedesk@me.tamkungz`) if you'd rather
-     pick the video and settings from a GUI than editing config.json.
+  4. The extension preferences remain available through GNOME's
+     Extensions app, but the standalone Livedesk app is the primary UI.
 
 This is a Phase 1 prototype (see README.md) -- expect rough edges,
 especially around GNOME-version-specific internal APIs used for

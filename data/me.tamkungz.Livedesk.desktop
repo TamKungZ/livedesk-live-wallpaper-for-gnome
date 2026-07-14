@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Livedesk
+GenericName=Live Wallpaper for GNOME
+Comment=Configure Livedesk live video wallpaper
+Exec=livedesk
+Icon=preferences-desktop-wallpaper
+Categories=GTK;GNOME;Settings;DesktopSettings;
+StartupNotify=true

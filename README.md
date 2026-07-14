@@ -6,9 +6,10 @@ window -- instead of a hidden fullscreen player window pretending to be
 a wallpaper.
 
 This is the **Phase 1** prototype described in the design doc: a GNOME
-Shell extension + a small native daemon, talking over D-Bus and a
-shared-memory frame buffer. It is *not* the "patch Mutter directly"
-end-game (Phase 3) -- see "Where this goes next" below.
+Shell extension + a small native daemon + a standalone GTK settings app,
+talking over D-Bus and a shared-memory frame buffer. It is *not* the
+"patch Mutter directly" end-game (Phase 3) -- see "Where this goes
+next" below.
 
 ## How it works
 
@@ -32,6 +33,10 @@ Mutter compositor draws it as part of the desktop background
 Control (which video, play/pause/mute) goes over a small D-Bus
 interface (`me.tamkungz.Livedesk`) -- never per-frame pixel data,
 that would be far too slow over D-Bus.
+
+The primary settings UI is the standalone `livedesk` GTK app. It writes
+`~/.config/livedesk/config.json` and applies changes to a running daemon
+over D-Bus.
 
 ### Why a separate daemon instead of decoding inside GNOME Shell?
 
@@ -57,9 +62,11 @@ GStreamer 1.24, `dbus`/`dbus-crossroads`):
 - `daemon/`: GStreamer playbin -> appsink(RGBA) -> shared-memory seqlock
   writer, with a D-Bus control surface (`SetSource`, `Play`, `Pause`,
   `Stop`, `SetMuted`, `FramePath`, `ListMonitors`).
+- `app/`: GTK4/Libadwaita Livedesk app for selecting the video source,
+  monitor, output size, mute state, and daemon playback controls.
 - `shell-extension/`: GNOME 45+ ES-module extension that creates one
   actor per monitor in the real background group, reads frames via the
-  seqlock protocol, and a GTK4/Libadwaita prefs UI.
+  seqlock protocol, and keeps a small GNOME extension preferences UI.
 
 **Deliberately left rough for Phase 1** (see "Where this goes next"):
 - The extension copies each frame through a `Uint8Array` -> new
@@ -84,7 +91,7 @@ GStreamer 1.24, `dbus`/`dbus-crossroads`):
 
 Requirements (Debian/Ubuntu package names):
 ```
-sudo apt install cargo rustc pkg-config \
+sudo apt install cargo rustc pkg-config gjs gir1.2-gtk-4.0 gir1.2-adw-1 \
   libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libdbus-1-dev \
   gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav
 ```
@@ -96,11 +103,10 @@ Then:
 ./install.sh
 ```
 See the script's own final printout for the remaining manual steps
-(editing `config.json`, enabling the systemd unit, enabling the
-extension). Nothing auto-enables the extension for you -- GNOME
-requires an explicit `gnome-extensions enable ...` and, on Wayland, a
-logout/login for a newly-*installed* (not just newly-enabled)
-extension to load.
+(opening `livedesk`, enabling the systemd unit, enabling the extension).
+Nothing auto-enables the extension for you -- GNOME requires an explicit
+`gnome-extensions enable ...` and, on Wayland, a logout/login for a
+newly-*installed* (not just newly-enabled) extension to load.
 
 ### Rust toolchain note
 
@@ -135,6 +141,9 @@ fine and you'll pick up their improvements.
 
 ```
 livedesk/
+├── app/                     GTK4/Libadwaita settings app (`livedesk`)
+├── data/
+│   └── me.tamkungz.Livedesk.desktop
 ├── daemon/                  Rust + GStreamer decode daemon
 │   ├── Cargo.toml
 │   └── src/
