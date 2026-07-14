@@ -20,8 +20,7 @@ const TILE_HEIGHT = 154;
 const THUMB_WIDTH = 190;
 const THUMB_HEIGHT = 107;
 const GRID_MARGIN = 18;
-const GRID_MIN_GAP = 18;
-const GRID_MAX_GAP = 80;
+const GRID_GAP = 24;
 const GRID_MAX_COLUMNS = 6;
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.webm', '.mkv', '.mov', '.avi', '.m4v', '.ogv']);
 
@@ -416,6 +415,7 @@ class LivedeskApp extends Adw.Application {
             valign: Gtk.Align.START,
             hexpand: true,
             row_spacing: 16,
+            column_spacing: GRID_GAP,
             margin_top: GRID_MARGIN,
             margin_bottom: GRID_MARGIN,
             margin_start: GRID_MARGIN,
@@ -561,17 +561,8 @@ class LivedeskApp extends Adw.Application {
         );
         this._galleryWidth = width;
         const available = Math.max(TILE_WIDTH, width - (GRID_MARGIN * 2));
-        const naturalColumns = Math.floor((available + GRID_MIN_GAP) / (TILE_WIDTH + GRID_MIN_GAP));
+        const naturalColumns = Math.floor((available + GRID_GAP) / (TILE_WIDTH + GRID_GAP));
         const columns = Math.max(1, Math.min(GRID_MAX_COLUMNS, naturalColumns));
-        const usedTileWidth = columns * TILE_WIDTH;
-        const rawGap = columns > 1 ? Math.floor((available - usedTileWidth) / (columns - 1)) : 0;
-        const gap = columns > 1 ? Math.max(GRID_MIN_GAP, Math.min(GRID_MAX_GAP, rawGap)) : 0;
-        const usedWidth = usedTileWidth + (gap * Math.max(0, columns - 1));
-        const sideMargin = Math.max(GRID_MARGIN, Math.floor((width - usedWidth) / 2));
-
-        this._grid.column_spacing = gap;
-        this._grid.margin_start = sideMargin;
-        this._grid.margin_end = sideMargin;
 
         this._galleryTiles.forEach((tile, index) => {
             const column = index % columns;
