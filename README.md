@@ -9,7 +9,7 @@
   <h1>Livedesk - Live Wallpaper for GNOME</h1>
 
   <p>
-    <a href="https://github.com/TamKungZ/livedesk-live-wallpaper-for-gnome/actions/workflows/release.yml"><img alt="Release workflow" src="https://img.shields.io/github/actions/workflow/status/TamKungZ/livedesk-live-wallpaper-for-gnome/release.yml?branch=main&label=release"></a>
+    <a href="https://github.com/TamKungZ/livedesk-live-wallpaper-for-gnome/releases/latest"><img alt="Latest Release" src="https://img.shields.io/github/v/release/TamKungZ/livedesk-live-wallpaper-for-gnome?display_name=tag"></a>
     <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue"></a>
     <img alt="GNOME Shell" src="https://img.shields.io/badge/GNOME%20Shell-40--51-4a86cf">
     <img alt="GTK4" src="https://img.shields.io/badge/GTK-4-4a86cf">
