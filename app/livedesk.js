@@ -407,7 +407,7 @@ class LivedeskApp extends Adw.Application {
         });
 
         this._flow = new Gtk.FlowBox({
-            halign: Gtk.Align.FILL,
+            halign: Gtk.Align.START,
             valign: Gtk.Align.START,
             hexpand: true,
             selection_mode: Gtk.SelectionMode.NONE,
