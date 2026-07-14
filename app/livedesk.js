@@ -14,10 +14,10 @@ const CONFIG_DIR = GLib.build_filenamev([GLib.get_user_config_dir(), 'livedesk']
 const CONFIG_PATH = GLib.build_filenamev([CONFIG_DIR, 'config.json']);
 const CACHE_DIR = GLib.build_filenamev([GLib.get_user_cache_dir(), 'livedesk']);
 const THUMB_DIR = GLib.build_filenamev([CACHE_DIR, 'thumbnails']);
-const TILE_WIDTH = 118;
-const TILE_HEIGHT = 96;
-const THUMB_WIDTH = 106;
-const THUMB_HEIGHT = 60;
+const TILE_WIDTH = 168;
+const TILE_HEIGHT = 132;
+const THUMB_WIDTH = 152;
+const THUMB_HEIGHT = 86;
 const GRID_COLUMNS = 8;
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.webm', '.mkv', '.mov', '.avi', '.m4v', '.ogv']);
 
@@ -567,7 +567,9 @@ class LivedeskApp extends Adw.Application {
             margin_start: 8,
             margin_end: 8,
             halign: Gtk.Align.START,
+            valign: Gtk.Align.START,
             hexpand: false,
+            vexpand: false,
             css_classes: ['livedesk-tile'],
         });
         if (this._config.selected === uri)
