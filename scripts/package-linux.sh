@@ -20,12 +20,16 @@ install_tree() {
     "$STAGE/usr/share/applications" \
     "$STAGE/usr/share/doc/livedesk" \
     "$STAGE/usr/share/gnome-shell/extensions/livedesk@me.tamkungz" \
+    "$STAGE/usr/share/icons/hicolor/256x256/apps" \
+    "$STAGE/usr/share/icons/hicolor/scalable/apps" \
     "$STAGE/usr/share/livedesk/extensions" \
     "$STAGE/usr/lib/systemd/user"
 
   install -m 755 "$ROOT_DIR/daemon/target/release/livedesk-daemon" "$STAGE/usr/bin/livedesk-daemon"
   install -m 755 "$ROOT_DIR/app/livedesk.js" "$STAGE/usr/bin/livedesk"
   install -m 644 "$ROOT_DIR/data/me.tamkungz.Livedesk.desktop" "$STAGE/usr/share/applications/me.tamkungz.Livedesk.desktop"
+  install -m 644 "$ROOT_DIR/data/icons/hicolor/256x256/apps/me.tamkungz.Livedesk.png" "$STAGE/usr/share/icons/hicolor/256x256/apps/me.tamkungz.Livedesk.png"
+  install -m 644 "$ROOT_DIR/data/icons/hicolor/scalable/apps/me.tamkungz.Livedesk.svg" "$STAGE/usr/share/icons/hicolor/scalable/apps/me.tamkungz.Livedesk.svg"
   install -m 644 "$ROOT_DIR/livedesk-daemon.service" "$STAGE/usr/lib/systemd/user/livedesk-daemon.service"
   install -m 644 "$ROOT_DIR/README.md" "$STAGE/usr/share/doc/livedesk/README.md"
   install -m 644 "$ROOT_DIR/LICENSE" "$STAGE/usr/share/doc/livedesk/LICENSE"
@@ -51,6 +55,7 @@ Priority: optional
 Architecture: $ARCH_DEB
 Maintainer: TamKungZ_ <dev@tamkungz.me>
 Depends: gjs, gir1.2-gtk-4.0, gir1.2-adw-1, gnome-shell, libgstreamer1.0-0, gstreamer1.0-plugins-good, gstreamer1.0-plugins-bad, gstreamer1.0-libav, dbus-user-session
+Recommends: totem | ffmpeg
 Description: Live video wallpaper for GNOME
  Livedesk renders a looping video as the GNOME desktop background via
  a GNOME Shell extension and a native GStreamer daemon.
@@ -81,6 +86,7 @@ Requires: gtk4
 Requires: libadwaita
 Requires: gnome-shell
 Requires: gstreamer1
+Recommends: totem
 
 %description
 Livedesk renders a looping video as the GNOME desktop background via a
@@ -102,6 +108,8 @@ cp -a . %{buildroot}/
 /usr/bin/livedesk-daemon
 /usr/share/applications/me.tamkungz.Livedesk.desktop
 /usr/share/gnome-shell/extensions/livedesk@me.tamkungz
+/usr/share/icons/hicolor/256x256/apps/me.tamkungz.Livedesk.png
+/usr/share/icons/hicolor/scalable/apps/me.tamkungz.Livedesk.svg
 /usr/share/livedesk/extensions
 /usr/lib/systemd/user/livedesk-daemon.service
 

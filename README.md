@@ -43,12 +43,15 @@ Debian/Ubuntu package names:
 ```bash
 sudo apt install cargo rustc pkg-config gjs gir1.2-gtk-4.0 gir1.2-adw-1 \
   libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libdbus-1-dev \
-  gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav
+  gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav \
+  totem
 ```
 
 The `*-dev` packages are required to build the Rust daemon. The
 `gstreamer1.0-*` plugin packages provide runtime decoders for formats
-such as H.264, VP8, VP9, and AV1.
+such as H.264, VP8, VP9, and AV1. `totem` provides
+`totem-video-thumbnailer`, which Livedesk uses for static gallery
+thumbnails when available.
 
 If Cargo reports missing files such as `gstreamer-1.0.pc`,
 `gstreamer-app-1.0.pc`, or `gstreamer-video-1.0.pc`, the GStreamer
@@ -103,6 +106,18 @@ The app can:
 
 Use the hamburger menu in the top-right corner for daemon controls and
 settings.
+
+Imported videos are copied into the Livedesk library folder:
+
+```text
+~/Videos/Livedesk
+```
+
+Static thumbnails are cached in:
+
+```text
+~/.cache/livedesk/thumbnails
+```
 
 The app writes configuration to:
 

@@ -4,6 +4,6 @@ Name=Livedesk
 GenericName=Live Wallpaper for GNOME
 Comment=Configure Livedesk live video wallpaper
 Exec=livedesk
-Icon=preferences-desktop-wallpaper
+Icon=me.tamkungz.Livedesk
 Categories=GTK;GNOME;Settings;DesktopSettings;
 StartupNotify=true

@@ -11,6 +11,12 @@ const DBUS_NAME = 'me.tamkungz.Livedesk';
 const DBUS_PATH = '/me/tamkungz/Livedesk';
 const CONFIG_DIR = GLib.build_filenamev([GLib.get_user_config_dir(), 'livedesk']);
 const CONFIG_PATH = GLib.build_filenamev([CONFIG_DIR, 'config.json']);
+const CACHE_DIR = GLib.build_filenamev([GLib.get_user_cache_dir(), 'livedesk']);
+const THUMB_DIR = GLib.build_filenamev([CACHE_DIR, 'thumbnails']);
+const TILE_WIDTH = 300;
+const TILE_HEIGHT = 206;
+const THUMB_WIDTH = 284;
+const THUMB_HEIGHT = 160;
 
 const DBUS_IFACE_XML = `
 <node>
@@ -36,8 +42,22 @@ const DBUS_IFACE_XML = `
 </node>`;
 const LivedeskProxy = Gio.DBusProxy.makeProxyWrapper(DBUS_IFACE_XML);
 
+function defaultLibraryDir() {
+    const videos = GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_VIDEOS)
+        ?? GLib.build_filenamev([GLib.get_home_dir(), 'Videos']);
+    return GLib.build_filenamev([videos, 'Livedesk']);
+}
+
+function ensureDirs(config) {
+    GLib.mkdir_with_parents(CONFIG_DIR, 0o755);
+    GLib.mkdir_with_parents(CACHE_DIR, 0o755);
+    GLib.mkdir_with_parents(THUMB_DIR, 0o755);
+    GLib.mkdir_with_parents(config.library_dir, 0o755);
+}
+
 function defaultConfig() {
     return {
+        library_dir: defaultLibraryDir(),
         library: [],
         selected: '',
         muted: true,
@@ -57,6 +77,7 @@ function loadConfig() {
         const config = {...defaultConfig(), ...JSON.parse(new TextDecoder().decode(bytes))};
         config.monitors = {...defaultConfig().monitors, ...(config.monitors ?? {})};
         config.library = Array.isArray(config.library) ? config.library : [];
+        config.library_dir = config.library_dir || defaultLibraryDir();
 
         const firstMonitor = Object.keys(config.monitors)[0] ?? 'monitor-0';
         const activeUri = config.selected || config.monitors[firstMonitor]?.uri || '';
@@ -64,14 +85,17 @@ function loadConfig() {
         if (activeUri && !config.library.includes(activeUri))
             config.library.unshift(activeUri);
 
+        ensureDirs(config);
         return config;
     } catch (_) {
-        return defaultConfig();
+        const config = defaultConfig();
+        ensureDirs(config);
+        return config;
     }
 }
 
 function saveConfig(config) {
-    GLib.mkdir_with_parents(CONFIG_DIR, 0o755);
+    ensureDirs(config);
     GLib.file_set_contents(CONFIG_PATH, `${JSON.stringify(config, null, 2)}\n`);
 }
 
@@ -90,6 +114,70 @@ function displayNameForUri(uri) {
     if (path === uri)
         return uri;
     return GLib.path_get_basename(path);
+}
+
+function thumbnailPathForUri(uri) {
+    const hash = GLib.compute_checksum_for_string(GLib.ChecksumType.SHA256, uri, -1);
+    return GLib.build_filenamev([THUMB_DIR, `${hash}.png`]);
+}
+
+function runCommand(args) {
+    try {
+        const [ok, , , status] = GLib.spawn_sync(
+            null,
+            args,
+            null,
+            GLib.SpawnFlags.SEARCH_PATH,
+            null
+        );
+        return ok && status === 0;
+    } catch (_) {
+        return false;
+    }
+}
+
+function thumbnailForUri(uri) {
+    const input = fileUriToPath(uri);
+    const output = thumbnailPathForUri(uri);
+    if (GLib.file_test(output, GLib.FileTest.EXISTS))
+        return output;
+    if (!input || input === uri || !GLib.file_test(input, GLib.FileTest.EXISTS))
+        return null;
+
+    GLib.mkdir_with_parents(THUMB_DIR, 0o755);
+    if (runCommand(['totem-video-thumbnailer', '-s', '640', input, output]))
+        return output;
+    if (runCommand(['ffmpeg', '-y', '-ss', '00:00:01', '-i', input, '-frames:v', '1', '-vf', 'scale=640:-1', output]))
+        return output;
+    return null;
+}
+
+function importVideoToLibrary(uri, libraryDir) {
+    const source = Gio.File.new_for_uri(uri);
+    const sourcePath = source.get_path();
+    if (!sourcePath)
+        return uri;
+
+    GLib.mkdir_with_parents(libraryDir, 0o755);
+    if (sourcePath.startsWith(`${libraryDir}/`))
+        return uri;
+
+    const basename = GLib.path_get_basename(sourcePath);
+    const dot = basename.lastIndexOf('.');
+    const stem = dot > 0 ? basename.slice(0, dot) : basename;
+    const ext = dot > 0 ? basename.slice(dot) : '';
+
+    for (let i = 0; i < 1000; i++) {
+        const name = i === 0 ? basename : `${stem}-${i}${ext}`;
+        const targetPath = GLib.build_filenamev([libraryDir, name]);
+        if (GLib.file_test(targetPath, GLib.FileTest.EXISTS))
+            continue;
+
+        source.copy(Gio.File.new_for_path(targetPath), Gio.FileCopyFlags.NONE, null, null);
+        return Gio.File.new_for_path(targetPath).get_uri();
+    }
+
+    return uri;
 }
 
 const LivedeskApp = GObject.registerClass(
@@ -119,6 +207,8 @@ class LivedeskApp extends Adw.Application {
         this._addAction('pause', () => this._callDaemon('PauseRemote'));
         this._addAction('stop', () => this._callDaemon('StopRemote'));
         this._addAction('apply', () => this._saveAndApply());
+        this._addAction('settings', () => this._toggleSettings());
+        this._addAction('about', () => this._showAbout());
     }
 
     _addAction(name, callback) {
@@ -155,29 +245,23 @@ class LivedeskApp extends Adw.Application {
         this._window = new Adw.ApplicationWindow({
             application: this,
             title: 'Livedesk',
-            default_width: 880,
-            default_height: 620,
+            default_width: 1280,
+            default_height: 720,
+            icon_name: APP_ID,
         });
 
-        const root = new Gtk.Box({
-            orientation: Gtk.Orientation.VERTICAL,
-        });
+        const root = new Gtk.Box({orientation: Gtk.Orientation.VERTICAL});
         this._window.set_content(root);
 
         const header = new Adw.HeaderBar();
-        const addButton = new Gtk.Button({
-            icon_name: 'list-add-symbolic',
-            tooltip_text: 'Add video',
-        });
-        addButton.connect('clicked', () => this._chooseVideo());
-        header.pack_start(addButton);
-
-        const menuButton = new Gtk.MenuButton({
-            icon_name: 'open-menu-symbolic',
-            tooltip_text: 'Menu',
-        });
-        menuButton.set_menu_model(this._menuModel());
-        header.pack_end(menuButton);
+        header.pack_start(this._iconButton('list-add-symbolic', 'Add video', () => this._chooseVideo()));
+        header.pack_end(this._menuButton());
+        header.pack_end(this._iconButton('emblem-system-symbolic', 'Settings', () => this._toggleSettings()));
+        header.pack_end(this._iconButton('media-playback-stop-symbolic', 'Stop', () => this._callDaemon('StopRemote')));
+        header.pack_end(this._iconButton('media-playback-pause-symbolic', 'Pause', () => this._callDaemon('PauseRemote')));
+        header.pack_end(this._iconButton('media-playback-start-symbolic', 'Play', () => this._callDaemon('PlayRemote')));
+        header.pack_end(this._iconButton('view-refresh-symbolic', 'Save and apply', () => this._saveAndApply()));
+        header.pack_end(this._iconButton('system-run-symbolic', 'Start daemon', () => this._startDaemon()));
         root.append(header);
 
         const stack = new Gtk.Stack({
@@ -192,25 +276,35 @@ class LivedeskApp extends Adw.Application {
         stack.visible_child_name = 'gallery';
     }
 
-    _menuModel() {
+    _iconButton(iconName, tooltip, callback) {
+        const button = new Gtk.Button({
+            icon_name: iconName,
+            tooltip_text: tooltip,
+        });
+        button.connect('clicked', callback);
+        return button;
+    }
+
+    _menuButton() {
         const menu = new Gio.Menu();
         menu.append('Add Video', 'app.add-video');
         menu.append('Save and Apply', 'app.apply');
         menu.append('Start Daemon', 'app.start-daemon');
-        menu.append('Play', 'app.play');
-        menu.append('Pause', 'app.pause');
-        menu.append('Stop', 'app.stop');
-        menu.append('Settings', 'app.apply-settings-view');
+        menu.append('Settings', 'app.settings');
+        menu.append('About Livedesk', 'app.about');
 
-        const settingsAction = new Gio.SimpleAction({name: 'apply-settings-view'});
-        settingsAction.connect('activate', () => {
-            this._stack.visible_child_name = this._stack.visible_child_name === 'settings'
-                ? 'gallery'
-                : 'settings';
+        const button = new Gtk.MenuButton({
+            icon_name: 'open-menu-symbolic',
+            tooltip_text: 'Menu',
         });
-        this.add_action(settingsAction);
+        button.set_menu_model(menu);
+        return button;
+    }
 
-        return menu;
+    _toggleSettings() {
+        this._stack.visible_child_name = this._stack.visible_child_name === 'settings'
+            ? 'gallery'
+            : 'settings';
     }
 
     _galleryPage() {
@@ -222,14 +316,14 @@ class LivedeskApp extends Adw.Application {
         this._flow = new Gtk.FlowBox({
             valign: Gtk.Align.START,
             max_children_per_line: 4,
-            min_children_per_line: 1,
+            min_children_per_line: 2,
             selection_mode: Gtk.SelectionMode.NONE,
-            column_spacing: 14,
-            row_spacing: 14,
-            margin_top: 18,
-            margin_bottom: 18,
-            margin_start: 18,
-            margin_end: 18,
+            column_spacing: 16,
+            row_spacing: 16,
+            margin_top: 20,
+            margin_bottom: 20,
+            margin_start: 20,
+            margin_end: 20,
         });
         scrolled.set_child(this._flow);
         this._reloadGallery();
@@ -242,28 +336,33 @@ class LivedeskApp extends Adw.Application {
             icon_name: 'emblem-system-symbolic',
         });
 
-        const group = new Adw.PreferencesGroup({title: 'Wallpaper'});
-        page.add(group);
-
+        const libraryGroup = new Adw.PreferencesGroup({title: 'Library'});
+        page.add(libraryGroup);
+        libraryGroup.add(new Adw.ActionRow({
+            title: 'Folder',
+            subtitle: this._config.library_dir,
+        }));
         this._selectedRow = new Adw.ActionRow({
             title: 'Selected video',
             subtitle: fileUriToPath(this._config.selected),
         });
-        group.add(this._selectedRow);
+        libraryGroup.add(this._selectedRow);
 
+        const wallpaperGroup = new Adw.PreferencesGroup({title: 'Wallpaper'});
+        page.add(wallpaperGroup);
         this._monitorEntry = new Adw.EntryRow({title: 'Monitor'});
         this._monitorEntry.text = firstMonitor;
-        group.add(this._monitorEntry);
+        wallpaperGroup.add(this._monitorEntry);
 
         this._widthSpin = this._spin(firstConfig.width ?? 1920, 320, 16384);
         const widthRow = new Adw.ActionRow({title: 'Width'});
         widthRow.add_suffix(this._widthSpin);
-        group.add(widthRow);
+        wallpaperGroup.add(widthRow);
 
         this._heightSpin = this._spin(firstConfig.height ?? 1080, 240, 16384);
         const heightRow = new Adw.ActionRow({title: 'Height'});
         heightRow.add_suffix(this._heightSpin);
-        group.add(heightRow);
+        wallpaperGroup.add(heightRow);
 
         this._mutedSwitch = new Gtk.Switch({
             active: this._config.muted ?? true,
@@ -272,32 +371,7 @@ class LivedeskApp extends Adw.Application {
         const mutedRow = new Adw.ActionRow({title: 'Mute audio'});
         mutedRow.add_suffix(this._mutedSwitch);
         mutedRow.activatable_widget = this._mutedSwitch;
-        group.add(mutedRow);
-
-        const controls = new Adw.PreferencesGroup({title: 'Daemon'});
-        page.add(controls);
-        controls.add(this._buttonRow([
-            ['Start daemon', () => this._startDaemon()],
-            ['Play', () => this._callDaemon('PlayRemote')],
-            ['Pause', () => this._callDaemon('PauseRemote')],
-            ['Stop', () => this._callDaemon('StopRemote')],
-        ]));
-
-        const applyGroup = new Adw.PreferencesGroup();
-        page.add(applyGroup);
-        const apply = new Gtk.Button({
-            label: 'Save and apply',
-            halign: Gtk.Align.END,
-            css_classes: ['suggested-action'],
-            margin_top: 8,
-            margin_bottom: 8,
-            margin_start: 12,
-            margin_end: 12,
-        });
-        apply.connect('clicked', () => this._saveAndApply());
-        const row = new Adw.PreferencesRow();
-        row.set_child(apply);
-        applyGroup.add(row);
+        wallpaperGroup.add(mutedRow);
 
         return page;
     }
@@ -315,27 +389,6 @@ class LivedeskApp extends Adw.Application {
         });
     }
 
-    _buttonRow(items) {
-        const box = new Gtk.Box({
-            orientation: Gtk.Orientation.HORIZONTAL,
-            spacing: 8,
-            margin_top: 8,
-            margin_bottom: 8,
-            margin_start: 12,
-            margin_end: 12,
-        });
-
-        for (const [label, callback] of items) {
-            const button = new Gtk.Button({label, hexpand: true});
-            button.connect('clicked', callback);
-            box.append(button);
-        }
-
-        const row = new Adw.PreferencesRow();
-        row.set_child(box);
-        return row;
-    }
-
     _reloadGallery() {
         let child = this._flow.get_first_child();
         while (child) {
@@ -344,17 +397,23 @@ class LivedeskApp extends Adw.Application {
             child = next;
         }
 
-        for (const uri of this._config.library)
-            this._flow.append(this._videoTile(uri));
-
+        const existing = [];
+        for (const uri of this._config.library) {
+            const path = fileUriToPath(uri);
+            if (path !== uri && GLib.file_test(path, GLib.FileTest.EXISTS)) {
+                existing.push(uri);
+                this._flow.append(this._videoTile(uri));
+            }
+        }
+        this._config.library = existing;
         this._flow.append(this._addTile());
     }
 
     _videoTile(uri) {
         const button = new Gtk.Button({
-            width_request: 190,
-            height_request: 150,
-            css_classes: this._config.selected === uri ? ['suggested-action'] : [],
+            width_request: TILE_WIDTH,
+            height_request: TILE_HEIGHT,
+            tooltip_text: fileUriToPath(uri),
         });
 
         const box = new Gtk.Box({
@@ -366,16 +425,24 @@ class LivedeskApp extends Adw.Application {
             margin_end: 8,
         });
 
-        const video = new Gtk.Video({
-            file: Gio.File.new_for_uri(uri),
-            autoplay: false,
-            loop: true,
-            hexpand: true,
-            vexpand: true,
-            height_request: 96,
-        });
-        video.media_stream?.set_muted(true);
-        box.append(video);
+        const thumb = thumbnailForUri(uri);
+        if (thumb) {
+            const picture = new Gtk.Picture({
+                file: Gio.File.new_for_path(thumb),
+                width_request: THUMB_WIDTH,
+                height_request: THUMB_HEIGHT,
+                hexpand: true,
+            });
+            box.append(picture);
+        } else {
+            const image = new Gtk.Image({
+                icon_name: 'video-x-generic-symbolic',
+                pixel_size: 64,
+                height_request: THUMB_HEIGHT,
+                hexpand: true,
+            });
+            box.append(image);
+        }
 
         const label = new Gtk.Label({
             label: displayNameForUri(uri),
@@ -383,6 +450,15 @@ class LivedeskApp extends Adw.Application {
             xalign: 0,
         });
         box.append(label);
+
+        if (this._config.selected === uri) {
+            const selected = new Gtk.Label({
+                label: 'Selected',
+                xalign: 0,
+                css_classes: ['dim-label'],
+            });
+            box.append(selected);
+        }
 
         button.set_child(box);
         button.connect('clicked', () => {
@@ -394,8 +470,8 @@ class LivedeskApp extends Adw.Application {
 
     _addTile() {
         const button = new Gtk.Button({
-            width_request: 190,
-            height_request: 150,
+            width_request: TILE_WIDTH,
+            height_request: TILE_HEIGHT,
         });
         const box = new Gtk.Box({
             orientation: Gtk.Orientation.VERTICAL,
@@ -403,7 +479,7 @@ class LivedeskApp extends Adw.Application {
             valign: Gtk.Align.CENTER,
             spacing: 8,
         });
-        box.append(new Gtk.Image({icon_name: 'list-add-symbolic', pixel_size: 32}));
+        box.append(new Gtk.Image({icon_name: 'list-add-symbolic', pixel_size: 36}));
         box.append(new Gtk.Label({label: 'Add video'}));
         button.set_child(box);
         button.connect('clicked', () => this._chooseVideo());
@@ -432,11 +508,15 @@ class LivedeskApp extends Adw.Application {
 
         dialog.connect('response', (dlg, response) => {
             if (response === Gtk.ResponseType.ACCEPT) {
-                const uri = dlg.get_file().get_uri();
-                if (!this._config.library.includes(uri))
-                    this._config.library.unshift(uri);
-                this._selectVideo(uri);
-                this._saveConfigOnly();
+                try {
+                    const uri = importVideoToLibrary(dlg.get_file().get_uri(), this._config.library_dir);
+                    if (!this._config.library.includes(uri))
+                        this._config.library.unshift(uri);
+                    this._selectVideo(uri);
+                    this._saveConfigOnly();
+                } catch (e) {
+                    this._showError(`Failed to import video: ${e.message}`);
+                }
             }
             dlg.destroy();
         });
@@ -483,6 +563,20 @@ class LivedeskApp extends Adw.Application {
             return;
         }
         this._proxy[method](this._activeMonitor());
+    }
+
+    _showAbout() {
+        const about = new Adw.AboutWindow({
+            transient_for: this._window,
+            application_name: 'Livedesk',
+            application_icon: APP_ID,
+            developer_name: 'TamKungZ_',
+            version: '0.1.0',
+            website: 'https://github.com/TamKungZ/Livedesk',
+            issue_url: 'https://github.com/TamKungZ/Livedesk/issues',
+            license_type: Gtk.License.GPL_3_0,
+        });
+        about.present();
     }
 
     _showError(message) {
