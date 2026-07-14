@@ -19,6 +19,24 @@ BIN_DEST="$HOME/.local/bin"
 APP_DEST="$HOME/.local/share/applications"
 SYSTEMD_DEST="$HOME/.config/systemd/user"
 
+detect_extension_source() {
+  local version major
+
+  if ! command -v gnome-shell >/dev/null; then
+    echo "$SCRIPT_DIR/shell-extension"
+    return
+  fi
+
+  version="$(gnome-shell --version | awk '{ print $NF }')"
+  major="${version%%.*}"
+
+  if [ "$major" -ge 40 ] && [ "$major" -le 44 ]; then
+    echo "$SCRIPT_DIR/shell-extension-legacy"
+  else
+    echo "$SCRIPT_DIR/shell-extension"
+  fi
+}
+
 echo "==> Checking build dependencies (rustc/cargo, pkg-config, GStreamer dev headers, GJS)"
 for cmd in cargo rustc pkg-config gjs; do
   command -v "$cmd" >/dev/null || {
@@ -42,8 +60,10 @@ mkdir -p "$APP_DEST"
 install -m 644 "$SCRIPT_DIR/data/me.tamkungz.Livedesk.desktop" "$APP_DEST/me.tamkungz.Livedesk.desktop"
 
 echo "==> Installing GNOME Shell extension to $EXT_DEST"
+EXT_SOURCE="$(detect_extension_source)"
 mkdir -p "$EXT_DEST"
-cp -r "$SCRIPT_DIR/shell-extension/"* "$EXT_DEST/"
+cp -r "$EXT_SOURCE/"* "$EXT_DEST/"
+echo "    Installed extension variant from $EXT_SOURCE"
 
 echo "==> Compiling GSettings schema"
 glib-compile-schemas "$EXT_DEST/schemas"

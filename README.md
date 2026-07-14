@@ -108,6 +108,62 @@ Nothing auto-enables the extension for you -- GNOME requires an explicit
 `gnome-extensions enable ...` and, on Wayland, a logout/login for a
 newly-*installed* (not just newly-enabled) extension to load.
 
+### What to run after building
+
+After `./install.sh`, run these:
+
+```
+systemctl --user enable --now livedesk-daemon
+gnome-extensions enable livedesk@me.tamkungz
+livedesk
+```
+
+If you only ran `cargo build --release --locked` manually, the daemon
+binary is:
+
+```
+daemon/target/release/livedesk-daemon
+```
+
+The GTK settings app is:
+
+```
+app/livedesk.js
+```
+
+### GNOME Shell versions
+
+GNOME Shell 45+ changed extensions to ES modules, while GNOME 40-44 use
+the legacy `imports.*` loader. Livedesk therefore builds two extension
+zip variants from the same project:
+
+- `dist/livedesk-extension-gnome45-49.zip`: GNOME 45, 46, 47, 48, 49
+- `dist/livedesk-extension-gnome40-44.zip`: GNOME 40, 41, 42, 43, 44
+
+Build both with:
+
+```
+scripts/build-extension-zip.sh all
+```
+
+For <https://extensions.gnome.org/upload/>, upload the zip matching the
+target GNOME Shell series. The modern upload file is
+`dist/livedesk-extension-gnome45-49.zip`; the legacy upload file is
+`dist/livedesk-extension-gnome40-44.zip`. They use the same UUID, so
+extensions.gnome.org may require submitting them as separate extension
+versions after review rather than one combined zip.
+
+### Debian and RPM packages
+
+Build release packages with:
+
+```
+scripts/package-linux.sh
+```
+
+The output files are written to `dist/`, including `.deb`, `.rpm`, and
+the two GNOME extension upload zips.
+
 ### Rust toolchain note
 
 `daemon/Cargo.toml` pins `hashbrown`/`indexmap` to versions that build
@@ -158,6 +214,8 @@ livedesk/
 │   ├── stylesheet.css
 │   └── schemas/*.gschema.xml
 ├── livedesk-daemon.service
+├── shell-extension-legacy/  GNOME 40-44 legacy loader variant
+├── scripts/                 extension zip and Linux package builders
 ├── config.example.json
 └── install.sh
 ```

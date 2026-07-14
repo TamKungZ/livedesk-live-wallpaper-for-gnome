@@ -1,5 +1,8 @@
 /daemon/target/
 /shell-extension/schemas/gschemas.compiled
+/shell-extension-legacy/schemas/gschemas.compiled
+/dist/
+/target/
 /.idea/
 /.vscode/
 *~

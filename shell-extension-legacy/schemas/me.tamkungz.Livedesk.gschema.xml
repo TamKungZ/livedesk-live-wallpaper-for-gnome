@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="livedesk">
+  <schema id="me.tamkungz.Livedesk"
+          path="/me/tamkungz/Livedesk/">
+
+    <key name="video-uri" type="s">
+      <default>''</default>
+      <summary>Video file URI</summary>
+      <description>file:// URI of the video to loop as wallpaper on the primary monitor.</description>
+    </key>
+
+    <key name="frame-rate" type="i">
+      <range min="1" max="60"/>
+      <default>30</default>
+      <summary>Target frame rate</summary>
+      <description>How often (times per second) the extension polls the shared-memory frame buffer and updates the background actor.</description>
+    </key>
+
+    <key name="muted" type="b">
+      <default>true</default>
+      <summary>Mute audio</summary>
+      <description>Wallpapers are silent by default.</description>
+    </key>
+
+    <key name="pause-on-fullscreen" type="b">
+      <default>true</default>
+      <summary>Pause when a window is fullscreen</summary>
+      <description>Stop decoding/playback while any monitor is covered by a fullscreen window, to save power.</description>
+    </key>
+
+    <key name="pause-on-battery" type="b">
+      <default>false</default>
+      <summary>Pause on battery power</summary>
+      <description>Stop playback when running on battery instead of AC power.</description>
+    </key>
+
+    <key name="pause-when-locked" type="b">
+      <default>true</default>
+      <summary>Pause when the screen is locked</summary>
+      <description>Stop playback while the screen shield / lock screen is active.</description>
+    </key>
+
+  </schema>
+</schemalist>

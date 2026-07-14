@@ -1,0 +1,98 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+      - "v*.*.*-*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release-linux-x64:
+    name: Release Linux x64
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust 1.77
+        run: |
+          rustup toolchain install 1.77 --profile minimal
+          rustup default 1.77
+
+      - name: Install build and packaging tools
+        run: |
+          set -eux
+          sudo apt-get update
+          sudo apt-get install -y \
+            cargo \
+            createrepo-c \
+            dpkg-dev \
+            gjs \
+            gir1.2-adw-1 \
+            gir1.2-gtk-4.0 \
+            gnome-shell \
+            jq \
+            libdbus-1-dev \
+            libgstreamer-plugins-base1.0-dev \
+            libgstreamer1.0-dev \
+            rpm \
+            zip
+
+      - name: Build release packages
+        run: |
+          set -eux
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [ "$VERSION" = "$GITHUB_REF_NAME" ] || [ -z "$VERSION" ]; then
+            VERSION="$(cargo metadata --manifest-path daemon/Cargo.toml --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "livedesk-daemon") | .version')"
+          fi
+          VERSION="$VERSION" scripts/package-linux.sh
+
+      - name: Inspect deb package
+        run: |
+          set -eux
+          for deb in dist/*.deb; do
+            dpkg -I "$deb"
+            dpkg -c "$deb"
+          done
+
+      - name: Inspect rpm package
+        run: |
+          set -eux
+          for rpm in dist/*.rpm; do
+            rpm -qpi "$rpm"
+            rpm -qpl "$rpm"
+            rpm -qpR "$rpm" || true
+          done
+
+      - name: Prepare checksums
+        run: |
+          set -eux
+          cd dist
+          sha256sum * > SHA256SUMS
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-linux-x64
+          path: dist/
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eux
+          TAG="${GITHUB_REF_NAME}"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$TAG" dist/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "Livedesk ${TAG}" \
+              --notes "Release ${TAG}"
+          fi
