@@ -1,4 +1,7 @@
+imports.gi.versions.Cogl = '2.0';
+
 const Clutter = imports.gi.Clutter;
+const Cogl = imports.gi.Cogl;
 const Gio = imports.gi.Gio;
 const GLib = imports.gi.GLib;
 const Main = imports.ui.main;
@@ -123,7 +126,7 @@ class MonitorWallpaper {
         const image = new Clutter.Image();
         const ok = image.set_data(
             pixels,
-            Clutter.PixelFormat.RGBA_8888,
+            Cogl.PixelFormat.RGBA_8888,
             width,
             height,
             width * 4
