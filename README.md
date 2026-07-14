@@ -95,11 +95,12 @@ livedesk
 
 The app can:
 
-- show saved videos as a thumbnail gallery
+- show videos from the library folder as a compact thumbnail gallery
 - select a video from the gallery and apply it immediately
-- add video files to the gallery
-- choose the monitor key, such as `monitor-0`
-- set output width and height
+- open the library folder
+- import video files into the library folder
+- choose from detected monitors
+- use the detected monitor resolution automatically
 - mute or unmute playback
 - start the daemon
 - send play, pause, stop, and apply commands over D-Bus
@@ -107,7 +108,8 @@ The app can:
 Use the hamburger menu in the top-right corner for daemon controls and
 settings.
 
-Imported videos are copied into the Livedesk library folder:
+The library folder is the main source of videos. Put video files here,
+or use the app's import action to copy files into it:
 
 ```text
 ~/Videos/Livedesk

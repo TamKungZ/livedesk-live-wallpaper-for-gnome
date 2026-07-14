@@ -1,6 +1,7 @@
 #!/usr/bin/env -S gjs -m
 
 import Adw from 'gi://Adw?version=1';
+import Gdk from 'gi://Gdk?version=4.0';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
@@ -13,10 +14,11 @@ const CONFIG_DIR = GLib.build_filenamev([GLib.get_user_config_dir(), 'livedesk']
 const CONFIG_PATH = GLib.build_filenamev([CONFIG_DIR, 'config.json']);
 const CACHE_DIR = GLib.build_filenamev([GLib.get_user_cache_dir(), 'livedesk']);
 const THUMB_DIR = GLib.build_filenamev([CACHE_DIR, 'thumbnails']);
-const TILE_WIDTH = 220;
-const TILE_HEIGHT = 152;
-const THUMB_WIDTH = 204;
-const THUMB_HEIGHT = 115;
+const TILE_WIDTH = 148;
+const TILE_HEIGHT = 122;
+const THUMB_WIDTH = 136;
+const THUMB_HEIGHT = 76;
+const VIDEO_EXTENSIONS = new Set(['.mp4', '.webm', '.mkv', '.mov', '.avi', '.m4v', '.ogv']);
 
 const DBUS_IFACE_XML = `
 <node>
@@ -116,6 +118,43 @@ function displayNameForUri(uri) {
     return GLib.path_get_basename(path);
 }
 
+function isVideoName(name) {
+    const dot = name.lastIndexOf('.');
+    if (dot < 0)
+        return false;
+    return VIDEO_EXTENSIONS.has(name.slice(dot).toLowerCase());
+}
+
+function scanLibrary(config) {
+    ensureDirs(config);
+
+    const dir = Gio.File.new_for_path(config.library_dir);
+    const uris = [];
+    try {
+        const enumerator = dir.enumerate_children(
+            'standard::name,standard::type',
+            Gio.FileQueryInfoFlags.NONE,
+            null
+        );
+        for (;;) {
+            const info = enumerator.next_file(null);
+            if (!info)
+                break;
+            if (info.get_file_type() !== Gio.FileType.REGULAR)
+                continue;
+            const name = info.get_name();
+            if (isVideoName(name))
+                uris.push(dir.get_child(name).get_uri());
+        }
+        enumerator.close(null);
+    } catch (_) {
+        return [];
+    }
+
+    uris.sort((a, b) => displayNameForUri(a).localeCompare(displayNameForUri(b)));
+    return uris;
+}
+
 function thumbnailPathForUri(uri) {
     const hash = GLib.compute_checksum_for_string(GLib.ChecksumType.SHA256, uri, -1);
     return GLib.build_filenamev([THUMB_DIR, `${hash}.png`]);
@@ -202,6 +241,8 @@ class LivedeskApp extends Adw.Application {
 
     _buildActions() {
         this._addAction('add-video', () => this._chooseVideo());
+        this._addAction('open-library', () => this._openLibrary());
+        this._addAction('refresh-library', () => this._refreshLibrary());
         this._addAction('start-daemon', () => this._startDaemon());
         this._addAction('play', () => this._callDaemon('PlayRemote'));
         this._addAction('pause', () => this._callDaemon('PauseRemote'));
@@ -226,21 +267,25 @@ class LivedeskApp extends Adw.Application {
     }
 
     _activeMonitor() {
-        const monitor = this._monitorEntry.text.trim();
-        return monitor || 'monitor-0';
+        return this._monitorCombo?.get_active_id?.() || this._selectedMonitorName || 'monitor-0';
     }
 
     _activeMonitorConfig() {
+        const monitor = this._selectedMonitor();
         return {
             uri: this._config.selected || '',
-            width: this._widthSpin.value_as_int,
-            height: this._heightSpin.value_as_int,
+            width: monitor.width,
+            height: monitor.height,
         };
     }
 
     _buildWindow() {
-        const firstMonitor = Object.keys(this._config.monitors ?? {})[0] ?? 'monitor-0';
-        const firstConfig = this._config.monitors?.[firstMonitor] ?? defaultConfig().monitors['monitor-0'];
+        this._config.library = scanLibrary(this._config);
+        this._monitors = this._detectMonitors();
+        const configuredMonitor = Object.keys(this._config.monitors ?? {})[0] ?? 'monitor-0';
+        this._selectedMonitorName = this._monitors.some(monitor => monitor.name === configuredMonitor)
+            ? configuredMonitor
+            : (this._monitors[0]?.name ?? 'monitor-0');
 
         this._window = new Adw.ApplicationWindow({
             application: this,
@@ -257,14 +302,10 @@ class LivedeskApp extends Adw.Application {
         this._backButton = this._iconButton('go-previous-symbolic', 'Back to library', () => this._showGallery());
         this._backButton.visible = false;
         header.pack_start(this._backButton);
-        header.pack_start(this._iconButton('list-add-symbolic', 'Add video', () => this._chooseVideo()));
+        header.pack_start(this._iconButton('folder-open-symbolic', 'Open library folder', () => this._openLibrary()));
         header.pack_end(this._menuButton());
         header.pack_end(this._iconButton('emblem-system-symbolic', 'Settings', () => this._toggleSettings()));
-        header.pack_end(this._iconButton('media-playback-stop-symbolic', 'Stop', () => this._callDaemon('StopRemote')));
-        header.pack_end(this._iconButton('media-playback-pause-symbolic', 'Pause', () => this._callDaemon('PauseRemote')));
-        header.pack_end(this._iconButton('media-playback-start-symbolic', 'Play', () => this._callDaemon('PlayRemote')));
-        header.pack_end(this._iconButton('view-refresh-symbolic', 'Save and apply', () => this._saveAndApply()));
-        header.pack_end(this._iconButton('system-run-symbolic', 'Start daemon', () => this._startDaemon()));
+        header.pack_end(this._iconButton('view-refresh-symbolic', 'Refresh library', () => this._refreshLibrary()));
         root.append(header);
 
         const stack = new Gtk.Stack({
@@ -275,7 +316,7 @@ class LivedeskApp extends Adw.Application {
         this._stack = stack;
 
         stack.add_named(this._galleryPage(), 'gallery');
-        stack.add_named(this._settingsPage(firstMonitor, firstConfig), 'settings');
+        stack.add_named(this._settingsPage(), 'settings');
         stack.visible_child_name = 'gallery';
     }
 
@@ -290,9 +331,14 @@ class LivedeskApp extends Adw.Application {
 
     _menuButton() {
         const menu = new Gio.Menu();
-        menu.append('Add Video', 'app.add-video');
+        menu.append('Open Library Folder', 'app.open-library');
+        menu.append('Import Video', 'app.add-video');
+        menu.append('Refresh Library', 'app.refresh-library');
         menu.append('Save and Apply', 'app.apply');
         menu.append('Start Daemon', 'app.start-daemon');
+        menu.append('Play', 'app.play');
+        menu.append('Pause', 'app.pause');
+        menu.append('Stop', 'app.stop');
         menu.append('Settings', 'app.settings');
         menu.append('About Livedesk', 'app.about');
 
@@ -329,22 +375,22 @@ class LivedeskApp extends Adw.Application {
 
         this._flow = new Gtk.FlowBox({
             valign: Gtk.Align.START,
-            max_children_per_line: 4,
-            min_children_per_line: 2,
+            max_children_per_line: 8,
+            min_children_per_line: 3,
             selection_mode: Gtk.SelectionMode.NONE,
-            column_spacing: 16,
-            row_spacing: 16,
-            margin_top: 20,
-            margin_bottom: 20,
-            margin_start: 20,
-            margin_end: 20,
+            column_spacing: 10,
+            row_spacing: 10,
+            margin_top: 18,
+            margin_bottom: 18,
+            margin_start: 18,
+            margin_end: 18,
         });
         scrolled.set_child(this._flow);
         this._reloadGallery();
         return scrolled;
     }
 
-    _settingsPage(firstMonitor, firstConfig) {
+    _settingsPage() {
         const page = new Adw.PreferencesPage({
             title: 'Settings',
             icon_name: 'emblem-system-symbolic',
@@ -364,19 +410,27 @@ class LivedeskApp extends Adw.Application {
 
         const wallpaperGroup = new Adw.PreferencesGroup({title: 'Wallpaper'});
         page.add(wallpaperGroup);
-        this._monitorEntry = new Adw.EntryRow({title: 'Monitor'});
-        this._monitorEntry.text = firstMonitor;
-        wallpaperGroup.add(this._monitorEntry);
 
-        this._widthSpin = this._spin(firstConfig.width ?? 1920, 320, 16384);
-        const widthRow = new Adw.ActionRow({title: 'Width'});
-        widthRow.add_suffix(this._widthSpin);
-        wallpaperGroup.add(widthRow);
+        this._monitorCombo = new Gtk.ComboBoxText({valign: Gtk.Align.CENTER});
+        for (const monitor of this._monitors)
+            this._monitorCombo.append(monitor.name, `${monitor.name} (${monitor.width}x${monitor.height})`);
+        this._monitorCombo.set_active_id(this._selectedMonitorName);
+        this._monitorCombo.connect('changed', () => {
+            this._selectedMonitorName = this._activeMonitor();
+            this._updateMonitorRows();
+        });
 
-        this._heightSpin = this._spin(firstConfig.height ?? 1080, 240, 16384);
-        const heightRow = new Adw.ActionRow({title: 'Height'});
-        heightRow.add_suffix(this._heightSpin);
-        wallpaperGroup.add(heightRow);
+        const monitorRow = new Adw.ActionRow({
+            title: 'Monitor',
+            subtitle: 'Detected from GNOME',
+        });
+        monitorRow.add_suffix(this._monitorCombo);
+        monitorRow.activatable_widget = this._monitorCombo;
+        wallpaperGroup.add(monitorRow);
+
+        this._resolutionRow = new Adw.ActionRow({title: 'Resolution'});
+        wallpaperGroup.add(this._resolutionRow);
+        this._updateMonitorRows();
 
         this._mutedSwitch = new Gtk.Switch({
             active: this._config.muted ?? true,
@@ -390,17 +444,39 @@ class LivedeskApp extends Adw.Application {
         return page;
     }
 
-    _spin(value, lower, upper) {
-        return new Gtk.SpinButton({
-            valign: Gtk.Align.CENTER,
-            adjustment: new Gtk.Adjustment({
-                lower,
-                upper,
-                step_increment: 1,
-                page_increment: 100,
-                value,
-            }),
-        });
+    _detectMonitors() {
+        const monitors = [];
+        const display = Gdk.Display.get_default();
+        const model = display?.get_monitors?.();
+
+        if (model) {
+            for (let i = 0; i < model.get_n_items(); i++) {
+                const monitor = model.get_item(i);
+                const geometry = monitor.get_geometry();
+                monitors.push({
+                    name: `monitor-${i}`,
+                    width: geometry.width,
+                    height: geometry.height,
+                });
+            }
+        }
+
+        if (monitors.length === 0)
+            monitors.push({name: 'monitor-0', width: 1920, height: 1080});
+        return monitors;
+    }
+
+    _selectedMonitor() {
+        return this._monitors.find(monitor => monitor.name === this._activeMonitor())
+            ?? this._monitors[0]
+            ?? {name: 'monitor-0', width: 1920, height: 1080};
+    }
+
+    _updateMonitorRows() {
+        if (!this._resolutionRow)
+            return;
+        const monitor = this._selectedMonitor();
+        this._resolutionRow.subtitle = `${monitor.width} x ${monitor.height}`;
     }
 
     _reloadGallery() {
@@ -411,16 +487,18 @@ class LivedeskApp extends Adw.Application {
             child = next;
         }
 
-        const existing = [];
-        for (const uri of this._config.library) {
-            const path = fileUriToPath(uri);
-            if (path !== uri && GLib.file_test(path, GLib.FileTest.EXISTS)) {
-                existing.push(uri);
-                this._flow.append(this._videoTile(uri));
-            }
-        }
-        this._config.library = existing;
-        this._flow.append(this._addTile());
+        this._config.library = scanLibrary(this._config);
+        if (this._config.selected && !this._config.library.includes(this._config.selected))
+            this._config.selected = this._config.library[0] ?? '';
+
+        if (this._selectedRow)
+            this._selectedRow.subtitle = fileUriToPath(this._config.selected);
+
+        for (const uri of this._config.library)
+            this._flow.append(this._videoTile(uri));
+
+        if (this._config.library.length === 0)
+            this._flow.append(this._emptyLibraryTile());
     }
 
     _videoTile(uri) {
@@ -435,6 +513,8 @@ class LivedeskApp extends Adw.Application {
             margin_end: 8,
             css_classes: ['card'],
         });
+        if (this._config.selected === uri)
+            card.add_css_class('accent');
 
         const thumb = thumbnailForUri(uri);
         let preview;
@@ -444,11 +524,12 @@ class LivedeskApp extends Adw.Application {
                 width_request: THUMB_WIDTH,
                 height_request: THUMB_HEIGHT,
                 hexpand: true,
+                can_shrink: true,
             });
         } else {
             preview = new Gtk.Image({
                 icon_name: 'video-x-generic-symbolic',
-                pixel_size: 64,
+                pixel_size: 36,
                 height_request: THUMB_HEIGHT,
                 hexpand: true,
             });
@@ -469,19 +550,10 @@ class LivedeskApp extends Adw.Application {
         label.add_controller(this._doubleClick(() => this._renameVideo(uri)));
         card.append(label);
 
-        if (this._config.selected === uri) {
-            const selected = new Gtk.Label({
-                label: 'Selected',
-                xalign: 0,
-                css_classes: ['dim-label'],
-            });
-            card.append(selected);
-        }
-
         return card;
     }
 
-    _addTile() {
+    _emptyLibraryTile() {
         const button = new Gtk.Button({
             width_request: TILE_WIDTH,
             height_request: TILE_HEIGHT,
@@ -490,12 +562,12 @@ class LivedeskApp extends Adw.Application {
             orientation: Gtk.Orientation.VERTICAL,
             halign: Gtk.Align.CENTER,
             valign: Gtk.Align.CENTER,
-            spacing: 8,
+            spacing: 6,
         });
-        box.append(new Gtk.Image({icon_name: 'list-add-symbolic', pixel_size: 36}));
-        box.append(new Gtk.Label({label: 'Add video'}));
+        box.append(new Gtk.Image({icon_name: 'folder-open-symbolic', pixel_size: 28}));
+        box.append(new Gtk.Label({label: 'Open folder'}));
         button.set_child(box);
-        button.connect('clicked', () => this._chooseVideo());
+        button.connect('clicked', () => this._openLibrary());
         return button;
     }
 
@@ -569,7 +641,6 @@ class LivedeskApp extends Adw.Application {
 
         Gio.File.new_for_path(oldPath).move(Gio.File.new_for_path(newPath), Gio.FileCopyFlags.NONE, null, null);
         const newUri = Gio.File.new_for_path(newPath).get_uri();
-        this._config.library = this._config.library.map(item => item === uri ? newUri : item);
         if (this._config.selected === uri)
             this._config.selected = newUri;
         this._saveConfigOnly();
@@ -600,8 +671,6 @@ class LivedeskApp extends Adw.Application {
             if (response === Gtk.ResponseType.ACCEPT) {
                 try {
                     const uri = importVideoToLibrary(dlg.get_file().get_uri(), this._config.library_dir);
-                    if (!this._config.library.includes(uri))
-                        this._config.library.unshift(uri);
                     this._selectVideo(uri);
                     this._saveConfigOnly();
                 } catch (e) {
@@ -613,11 +682,30 @@ class LivedeskApp extends Adw.Application {
         dialog.show();
     }
 
+    _openLibrary() {
+        ensureDirs(this._config);
+        try {
+            Gio.AppInfo.launch_default_for_uri(
+                Gio.File.new_for_path(this._config.library_dir).get_uri(),
+                null
+            );
+        } catch (e) {
+            this._showError(`Failed to open library folder: ${e.message}`);
+        }
+    }
+
+    _refreshLibrary() {
+        this._config.library = scanLibrary(this._config);
+        if (this._flow)
+            this._reloadGallery();
+        this._saveConfigOnly();
+    }
+
     _saveConfigOnly() {
         const monitor = this._activeMonitor();
         this._config.monitors = this._config.monitors ?? {};
         this._config.monitors[monitor] = this._activeMonitorConfig();
-        this._config.muted = this._mutedSwitch.active;
+        this._config.muted = this._mutedSwitch?.active ?? this._config.muted ?? true;
         saveConfig(this._config);
     }
 
