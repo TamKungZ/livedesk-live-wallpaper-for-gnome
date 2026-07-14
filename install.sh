@@ -73,7 +73,8 @@ glib-compile-schemas "$EXT_DEST/schemas"
 
 echo "==> Installing systemd --user unit (not enabled yet)"
 mkdir -p "$SYSTEMD_DEST"
-cp "$SCRIPT_DIR/livedesk-daemon.service" "$SYSTEMD_DEST/livedesk-daemon.service"
+sed "s|^ExecStart=.*|ExecStart=$BIN_DEST/livedesk-daemon|" \
+  "$SCRIPT_DIR/livedesk-daemon.service" > "$SYSTEMD_DEST/livedesk-daemon.service"
 systemctl --user daemon-reload
 
 echo "==> Setting up example config (edit the video path!)"

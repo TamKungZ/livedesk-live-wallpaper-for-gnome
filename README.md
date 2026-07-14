@@ -210,6 +210,19 @@ The `.deb` and `.rpm` packages include:
 - GNOME Shell extension files
 - extension zips under `/usr/share/livedesk/extensions`
 
+After installing a package, finish setup for the current user:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now livedesk-daemon
+gnome-extensions enable livedesk@me.tamkungz
+livedesk
+```
+
+If `gnome-extensions` says the extension does not exist, log out and
+back in first so GNOME Shell can discover the newly installed system
+extension, then run the enable command again.
+
 ## GitHub Releases
 
 The repository includes a GitHub Actions workflow at:

@@ -61,6 +61,31 @@ Description: Live video wallpaper for GNOME
  a GNOME Shell extension and a native GStreamer daemon.
 EOF
 
+  cat > "$deb_root/DEBIAN/postinst" <<'EOF'
+#!/usr/bin/env sh
+set -e
+
+cat <<'MSG'
+
+Livedesk was installed.
+
+Complete setup for your user session:
+  systemctl --user daemon-reload
+  systemctl --user enable --now livedesk-daemon
+
+If GNOME says "Extension does not exist", log out and back in first so
+GNOME Shell can discover the newly installed system extension, then run:
+  gnome-extensions enable livedesk@me.tamkungz
+
+Open the main app with:
+  livedesk
+
+MSG
+
+exit 0
+EOF
+  chmod 755 "$deb_root/DEBIAN/postinst"
+
   dpkg-deb --build "$deb_root" "$deb_path"
   echo "Built deb: $deb_path"
 }

@@ -6,7 +6,7 @@ PartOf=graphical-session.target
 
 [Service]
 Type=simple
-ExecStart=%h/.local/bin/livedesk-daemon
+ExecStart=/usr/bin/livedesk-daemon
 Restart=on-failure
 RestartSec=2
 # The daemon only decodes video and writes to shared memory / D-Bus;
