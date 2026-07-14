@@ -31,6 +31,7 @@ install_tree() {
   install -m 644 "$ROOT_DIR/LICENSE" "$STAGE/usr/share/doc/livedesk/LICENSE"
 
   cp -r "$ROOT_DIR/shell-extension/"* "$STAGE/usr/share/gnome-shell/extensions/livedesk@me.tamkungz/"
+  glib-compile-schemas --strict "$STAGE/usr/share/gnome-shell/extensions/livedesk@me.tamkungz/schemas"
   cp "$DIST_DIR"/livedesk-extension-gnome*.zip "$STAGE/usr/share/livedesk/extensions/"
 }
 
@@ -64,7 +65,7 @@ build_rpm() {
   local tarball="$rpmroot/SOURCES/livedesk-${VERSION}.tar.gz"
 
   rm -rf "$rpmroot"
-  mkdir -p "$rpmroot"/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
+  mkdir -p "$rpmroot"/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS,tmp}
   tar -C "$STAGE/.." -czf "$tarball" "livedesk-${VERSION}"
 
   cat > "$rpmroot/SPECS/livedesk.spec" <<EOF
@@ -109,7 +110,10 @@ cp -a . %{buildroot}/
 - Initial package
 EOF
 
-  rpmbuild --define "_topdir $rpmroot" -bb "$rpmroot/SPECS/livedesk.spec"
+  rpmbuild \
+    --define "_topdir $rpmroot" \
+    --define "_tmppath $rpmroot/tmp" \
+    -bb "$rpmroot/SPECS/livedesk.spec"
   cp "$rpmroot"/RPMS/*/*.rpm "$DIST_DIR/"
   echo "Built rpm packages in $DIST_DIR"
 }

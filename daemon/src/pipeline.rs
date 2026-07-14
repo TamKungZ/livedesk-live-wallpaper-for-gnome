@@ -17,9 +17,7 @@ use std::sync::{Arc, Mutex};
 pub struct MonitorPipeline {
     pub monitor: String,
     pipeline: gst::Element,
-    frame_buf: Arc<Mutex<Option<FrameBuffer>>>,
-    width: u32,
-    height: u32,
+    _frame_buf: Arc<Mutex<Option<FrameBuffer>>>,
 }
 
 impl MonitorPipeline {
@@ -130,9 +128,7 @@ impl MonitorPipeline {
         Ok(Self {
             monitor: monitor.to_string(),
             pipeline: playbin,
-            frame_buf,
-            width,
-            height,
+            _frame_buf: frame_buf,
         })
     }
 
@@ -163,20 +159,6 @@ impl MonitorPipeline {
             .set_property("mute", muted);
     }
 
-    /// Re-seek to the start; call this from an EOS handler in the
-    /// higher-level loop driver if you want seamless looping instead of
-    /// relying on `about-to-finish` gapless playback.
-    pub fn seek_to_start(&self) -> Result<()> {
-        self.pipeline.seek_simple(
-            gst::SeekFlags::FLUSH | gst::SeekFlags::KEY_UNIT,
-            gst::ClockTime::ZERO,
-        )?;
-        Ok(())
-    }
-
-    pub fn dimensions(&self) -> (u32, u32) {
-        (self.width, self.height)
-    }
 }
 
 impl Drop for MonitorPipeline {

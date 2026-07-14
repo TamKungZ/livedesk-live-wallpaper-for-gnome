@@ -26,7 +26,6 @@ pub struct FrameBuffer {
     mmap: MmapMut,
     width: u32,
     height: u32,
-    path: PathBuf,
 }
 
 impl FrameBuffer {
@@ -63,12 +62,7 @@ impl FrameBuffer {
             mmap,
             width,
             height,
-            path,
         })
-    }
-
-    pub fn path(&self) -> &Path {
-        &self.path
     }
 
     fn seq_ptr(&mut self) -> *mut u64 {
