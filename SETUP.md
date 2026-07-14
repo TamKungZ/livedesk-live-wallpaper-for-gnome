@@ -72,6 +72,7 @@ Install build dependencies first. On Debian/Ubuntu:
 ```bash
 sudo apt install cargo rustc pkg-config gjs gir1.2-gtk-4.0 gir1.2-adw-1 \
   libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libdbus-1-dev \
+  libunwind-dev \
   gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav \
   totem
 ```

@@ -70,6 +70,7 @@ Debian/Ubuntu package names:
 ```bash
 sudo apt install cargo rustc pkg-config gjs gir1.2-gtk-4.0 gir1.2-adw-1 \
   libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libdbus-1-dev \
+  libunwind-dev \
   gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav \
   totem
 ```
@@ -85,7 +86,7 @@ If Cargo reports missing files such as `gstreamer-1.0.pc`,
 runtime is installed but the development headers are missing. Install:
 
 ```bash
-sudo apt install libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+sudo apt install libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libunwind-dev
 ```
 
 ## Install
