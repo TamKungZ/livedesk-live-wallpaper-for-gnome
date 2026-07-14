@@ -13,10 +13,10 @@ const CONFIG_DIR = GLib.build_filenamev([GLib.get_user_config_dir(), 'livedesk']
 const CONFIG_PATH = GLib.build_filenamev([CONFIG_DIR, 'config.json']);
 const CACHE_DIR = GLib.build_filenamev([GLib.get_user_cache_dir(), 'livedesk']);
 const THUMB_DIR = GLib.build_filenamev([CACHE_DIR, 'thumbnails']);
-const TILE_WIDTH = 300;
-const TILE_HEIGHT = 206;
-const THUMB_WIDTH = 284;
-const THUMB_HEIGHT = 160;
+const TILE_WIDTH = 220;
+const TILE_HEIGHT = 152;
+const THUMB_WIDTH = 204;
+const THUMB_HEIGHT = 115;
 
 const DBUS_IFACE_XML = `
 <node>
@@ -254,6 +254,9 @@ class LivedeskApp extends Adw.Application {
         this._window.set_content(root);
 
         const header = new Adw.HeaderBar();
+        this._backButton = this._iconButton('go-previous-symbolic', 'Back to library', () => this._showGallery());
+        this._backButton.visible = false;
+        header.pack_start(this._backButton);
         header.pack_start(this._iconButton('list-add-symbolic', 'Add video', () => this._chooseVideo()));
         header.pack_end(this._menuButton());
         header.pack_end(this._iconButton('emblem-system-symbolic', 'Settings', () => this._toggleSettings()));
@@ -302,9 +305,20 @@ class LivedeskApp extends Adw.Application {
     }
 
     _toggleSettings() {
-        this._stack.visible_child_name = this._stack.visible_child_name === 'settings'
-            ? 'gallery'
-            : 'settings';
+        if (this._stack.visible_child_name === 'settings')
+            this._showGallery();
+        else
+            this._showSettings();
+    }
+
+    _showGallery() {
+        this._stack.visible_child_name = 'gallery';
+        this._backButton.visible = false;
+    }
+
+    _showSettings() {
+        this._stack.visible_child_name = 'settings';
+        this._backButton.visible = true;
     }
 
     _galleryPage() {
@@ -410,46 +424,50 @@ class LivedeskApp extends Adw.Application {
     }
 
     _videoTile(uri) {
-        const button = new Gtk.Button({
+        const card = new Gtk.Box({
+            orientation: Gtk.Orientation.VERTICAL,
+            spacing: 6,
             width_request: TILE_WIDTH,
             height_request: TILE_HEIGHT,
-            tooltip_text: fileUriToPath(uri),
-        });
-
-        const box = new Gtk.Box({
-            orientation: Gtk.Orientation.VERTICAL,
-            spacing: 8,
             margin_top: 8,
             margin_bottom: 8,
             margin_start: 8,
             margin_end: 8,
+            css_classes: ['card'],
         });
 
         const thumb = thumbnailForUri(uri);
+        let preview;
         if (thumb) {
-            const picture = new Gtk.Picture({
+            preview = new Gtk.Picture({
                 file: Gio.File.new_for_path(thumb),
                 width_request: THUMB_WIDTH,
                 height_request: THUMB_HEIGHT,
                 hexpand: true,
             });
-            box.append(picture);
         } else {
-            const image = new Gtk.Image({
+            preview = new Gtk.Image({
                 icon_name: 'video-x-generic-symbolic',
                 pixel_size: 64,
                 height_request: THUMB_HEIGHT,
                 hexpand: true,
             });
-            box.append(image);
         }
+        preview.tooltip_text = 'Double-click to use this video';
+        preview.add_controller(this._doubleClick(() => {
+            this._selectVideo(uri);
+            this._saveAndApply();
+        }));
+        card.append(preview);
 
         const label = new Gtk.Label({
             label: displayNameForUri(uri),
             ellipsize: 3,
             xalign: 0,
         });
-        box.append(label);
+        label.tooltip_text = 'Double-click to rename';
+        label.add_controller(this._doubleClick(() => this._renameVideo(uri)));
+        card.append(label);
 
         if (this._config.selected === uri) {
             const selected = new Gtk.Label({
@@ -457,15 +475,10 @@ class LivedeskApp extends Adw.Application {
                 xalign: 0,
                 css_classes: ['dim-label'],
             });
-            box.append(selected);
+            card.append(selected);
         }
 
-        button.set_child(box);
-        button.connect('clicked', () => {
-            this._selectVideo(uri);
-            this._saveAndApply();
-        });
-        return button;
+        return card;
     }
 
     _addTile() {
@@ -484,6 +497,83 @@ class LivedeskApp extends Adw.Application {
         button.set_child(box);
         button.connect('clicked', () => this._chooseVideo());
         return button;
+    }
+
+    _doubleClick(callback) {
+        const gesture = new Gtk.GestureClick({button: 1});
+        gesture.connect('pressed', (_gesture, nPress) => {
+            if (nPress === 2)
+                callback();
+        });
+        return gesture;
+    }
+
+    _renameVideo(uri) {
+        const path = fileUriToPath(uri);
+        if (!path || path === uri) {
+            this._showError('This video cannot be renamed.');
+            return;
+        }
+
+        const currentName = GLib.path_get_basename(path);
+        const dialog = new Gtk.Dialog({
+            title: 'Rename video',
+            transient_for: this._window,
+            modal: true,
+        });
+        dialog.add_button('Cancel', Gtk.ResponseType.CANCEL);
+        dialog.add_button('Rename', Gtk.ResponseType.ACCEPT);
+
+        const entry = new Gtk.Entry({
+            text: currentName,
+            activates_default: true,
+            margin_top: 18,
+            margin_bottom: 18,
+            margin_start: 18,
+            margin_end: 18,
+        });
+        dialog.set_default_response(Gtk.ResponseType.ACCEPT);
+        dialog.get_content_area().append(entry);
+
+        dialog.connect('response', (dlg, response) => {
+            if (response === Gtk.ResponseType.ACCEPT) {
+                try {
+                    this._applyRename(uri, entry.text);
+                } catch (e) {
+                    this._showError(`Failed to rename video: ${e.message}`);
+                }
+            }
+            dlg.destroy();
+        });
+        dialog.present();
+    }
+
+    _applyRename(uri, requestedName) {
+        const oldPath = fileUriToPath(uri);
+        let newName = requestedName.trim();
+        if (!newName)
+            return;
+
+        const oldName = GLib.path_get_basename(oldPath);
+        const oldDot = oldName.lastIndexOf('.');
+        const oldExt = oldDot > 0 ? oldName.slice(oldDot) : '';
+        if (oldExt && !newName.endsWith(oldExt))
+            newName = `${newName}${oldExt}`;
+
+        const dir = GLib.path_get_dirname(oldPath);
+        const newPath = GLib.build_filenamev([dir, newName]);
+        if (newPath === oldPath)
+            return;
+        if (GLib.file_test(newPath, GLib.FileTest.EXISTS))
+            throw new Error('A file with that name already exists.');
+
+        Gio.File.new_for_path(oldPath).move(Gio.File.new_for_path(newPath), Gio.FileCopyFlags.NONE, null, null);
+        const newUri = Gio.File.new_for_path(newPath).get_uri();
+        this._config.library = this._config.library.map(item => item === uri ? newUri : item);
+        if (this._config.selected === uri)
+            this._config.selected = newUri;
+        this._saveConfigOnly();
+        this._reloadGallery();
     }
 
     _selectVideo(uri) {
