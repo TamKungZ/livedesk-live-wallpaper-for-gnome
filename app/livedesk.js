@@ -15,11 +15,10 @@ const CONFIG_DIR = GLib.build_filenamev([GLib.get_user_config_dir(), 'livedesk']
 const CONFIG_PATH = GLib.build_filenamev([CONFIG_DIR, 'config.json']);
 const CACHE_DIR = GLib.build_filenamev([GLib.get_user_cache_dir(), 'livedesk']);
 const THUMB_DIR = GLib.build_filenamev([CACHE_DIR, 'thumbnails']);
-const TILE_WIDTH = 168;
-const TILE_HEIGHT = 132;
-const THUMB_WIDTH = 152;
-const THUMB_HEIGHT = 86;
-const GRID_COLUMNS = 8;
+const TILE_WIDTH = 210;
+const TILE_HEIGHT = 154;
+const THUMB_WIDTH = 190;
+const THUMB_HEIGHT = 107;
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.webm', '.mkv', '.mov', '.avi', '.m4v', '.ogv']);
 
 const DBUS_IFACE_XML = `
@@ -402,20 +401,24 @@ class LivedeskApp extends Adw.Application {
     _galleryPage() {
         const scrolled = new Gtk.ScrolledWindow({
             hscrollbar_policy: Gtk.PolicyType.NEVER,
+            vscrollbar_policy: Gtk.PolicyType.AUTOMATIC,
             vexpand: true,
         });
 
-        this._grid = new Gtk.Grid({
+        this._flow = new Gtk.FlowBox({
             halign: Gtk.Align.START,
             valign: Gtk.Align.START,
-            column_spacing: 8,
-            row_spacing: 8,
+            selection_mode: Gtk.SelectionMode.NONE,
+            min_children_per_line: 1,
+            max_children_per_line: 6,
+            column_spacing: 10,
+            row_spacing: 12,
             margin_top: 18,
             margin_bottom: 18,
             margin_start: 18,
             margin_end: 18,
         });
-        scrolled.set_child(this._grid);
+        scrolled.set_child(this._flow);
         this._reloadGallery();
         return scrolled;
     }
@@ -510,10 +513,10 @@ class LivedeskApp extends Adw.Application {
     }
 
     _reloadGallery() {
-        let child = this._grid.get_first_child();
+        let child = this._flow.get_first_child();
         while (child) {
             const next = child.get_next_sibling();
-            this._grid.remove(child);
+            this._flow.remove(child);
             child = next;
         }
 
@@ -525,12 +528,11 @@ class LivedeskApp extends Adw.Application {
             this._selectedRow.subtitle = fileUriToPath(this._config.selected);
         this._updateActionButtons();
 
-        this._config.library.forEach((uri, index) => {
-            this._grid.attach(this._videoTile(uri), index % GRID_COLUMNS, Math.floor(index / GRID_COLUMNS), 1, 1);
-        });
+        for (const uri of this._config.library)
+            this._flow.append(this._videoTile(uri));
 
         if (this._config.library.length === 0)
-            this._grid.attach(this._emptyLibraryTile(), 0, 0, 1, 1);
+            this._flow.append(this._emptyLibraryTile());
     }
 
     _videoTile(uri) {
@@ -548,6 +550,7 @@ class LivedeskApp extends Adw.Application {
             hexpand: false,
             vexpand: false,
         });
+        card.set_size_request(TILE_WIDTH, TILE_HEIGHT);
 
         const thumb = thumbnailForUri(uri);
         let preview;
@@ -561,6 +564,7 @@ class LivedeskApp extends Adw.Application {
                 can_shrink: true,
                 content_fit: Gtk.ContentFit.COVER,
             });
+            preview.set_size_request(THUMB_WIDTH, THUMB_HEIGHT);
         } else {
             preview = new Gtk.Image({
                 icon_name: 'video-x-generic-symbolic',
@@ -570,6 +574,7 @@ class LivedeskApp extends Adw.Application {
                 halign: Gtk.Align.CENTER,
                 hexpand: false,
             });
+            preview.set_size_request(THUMB_WIDTH, THUMB_HEIGHT);
         }
         preview.tooltip_text = 'Double-click to use this video';
         preview.add_controller(this._doubleClick(() => {
@@ -724,7 +729,7 @@ class LivedeskApp extends Adw.Application {
 
     _refreshLibrary() {
         this._config.library = scanLibrary(this._config);
-        if (this._grid)
+        if (this._flow)
             this._reloadGallery();
         this._saveConfigOnly();
     }
