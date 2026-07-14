@@ -29,11 +29,14 @@ install_tree() {
 
   install -m 755 "$ROOT_DIR/daemon/target/release/livedesk-daemon" "$STAGE/usr/bin/livedesk-daemon"
   install -m 755 "$ROOT_DIR/app/livedesk.js" "$STAGE/usr/bin/livedesk"
+  install -m 755 "$ROOT_DIR/scripts/livedesk-setup.sh" "$STAGE/usr/bin/livedesk-setup"
   install -m 644 "$ROOT_DIR/data/me.tamkungz.LivedeskApp.desktop" "$STAGE/usr/share/applications/me.tamkungz.LivedeskApp.desktop"
   install -m 644 "$ROOT_DIR/data/icons/hicolor/256x256/apps/me.tamkungz.Livedesk.png" "$STAGE/usr/share/icons/hicolor/256x256/apps/me.tamkungz.Livedesk.png"
   install -m 644 "$ROOT_DIR/data/icons/hicolor/scalable/apps/me.tamkungz.Livedesk.svg" "$STAGE/usr/share/icons/hicolor/scalable/apps/me.tamkungz.Livedesk.svg"
   install -m 644 "$ROOT_DIR/livedesk-daemon.service" "$STAGE/usr/lib/systemd/user/livedesk-daemon.service"
   install -m 644 "$ROOT_DIR/README.md" "$STAGE/usr/share/doc/livedesk/README.md"
+  install -m 644 "$ROOT_DIR/SETUP.md" "$STAGE/usr/share/doc/livedesk/SETUP.md"
+  install -m 644 "$ROOT_DIR/CHANGE.md" "$STAGE/usr/share/doc/livedesk/CHANGE.md"
   install -m 644 "$ROOT_DIR/LICENSE" "$STAGE/usr/share/doc/livedesk/LICENSE"
 
   cp -r "$ROOT_DIR/shell-extension-legacy/"* "$STAGE/usr/share/livedesk/extension-gnome40-44/"
@@ -93,8 +96,7 @@ cat <<'MSG'
 Livedesk was installed.
 
 Complete setup for your user session:
-  systemctl --user daemon-reload
-  systemctl --user enable --now livedesk-daemon
+  livedesk-setup
 
 If GNOME says "Extension does not exist", log out and back in first so
 GNOME Shell can discover the newly installed system extension, then run:
@@ -167,8 +169,11 @@ rm -f /usr/share/applications/me.tamkungz.Livedesk.desktop
 %files
 %license /usr/share/doc/livedesk/LICENSE
 %doc /usr/share/doc/livedesk/README.md
+%doc /usr/share/doc/livedesk/SETUP.md
+%doc /usr/share/doc/livedesk/CHANGE.md
 /usr/bin/livedesk
 /usr/bin/livedesk-daemon
+/usr/bin/livedesk-setup
 /usr/share/applications/me.tamkungz.LivedeskApp.desktop
 /usr/share/gnome-shell/extensions/livedesk@me.tamkungz
 /usr/share/icons/hicolor/256x256/apps/me.tamkungz.Livedesk.png

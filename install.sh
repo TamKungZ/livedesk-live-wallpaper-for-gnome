@@ -56,6 +56,7 @@ install -m 755 "$SCRIPT_DIR/daemon/target/release/livedesk-daemon" "$BIN_DEST/li
 
 echo "==> Installing Livedesk app to $BIN_DEST"
 install -m 755 "$SCRIPT_DIR/app/livedesk.js" "$BIN_DEST/livedesk"
+install -m 755 "$SCRIPT_DIR/scripts/livedesk-setup.sh" "$BIN_DEST/livedesk-setup"
 mkdir -p "$APP_DEST"
 install -m 644 "$SCRIPT_DIR/data/me.tamkungz.LivedeskApp.desktop" "$APP_DEST/me.tamkungz.LivedeskApp.desktop"
 mkdir -p "$HOME/.local/share/icons/hicolor/256x256/apps" "$HOME/.local/share/icons/hicolor/scalable/apps"
@@ -90,23 +91,18 @@ cat <<'EOF'
 
 Done. Remaining manual steps:
 
-  1. Open the Livedesk app:
-       livedesk
-     Pick your video and apply it to the daemon.
+  1. Start the daemon and enable the extension:
+       livedesk-setup
 
-  2. Start the daemon now, and enable it for future logins:
-       systemctl --user enable --now livedesk-daemon
-
-  3. Enable the shell extension:
-       gnome-extensions enable livedesk@me.tamkungz
-     On Wayland you'll need to log out and back in for a newly-installed
+  2. If GNOME does not see the extension yet, log out and back in.
+     On Wayland you'll usually need a full session restart for a newly-installed
      extension to be picked up; on X11, Alt+F2 -> 'r' -> Enter reloads
      GNOME Shell instead.
 
-  4. The extension preferences remain available through GNOME's
-     Extensions app, but the standalone Livedesk app is the primary UI.
+  3. Open the Livedesk app:
+       livedesk
+     Pick your video and apply it to the daemon.
 
-This is a Phase 1 prototype (see README.md) -- expect rough edges,
-especially around GNOME-version-specific internal APIs used for
-fullscreen/lock-screen detection.
+The extension preferences remain available through GNOME's Extensions app,
+but the standalone Livedesk app is the primary UI.
 EOF

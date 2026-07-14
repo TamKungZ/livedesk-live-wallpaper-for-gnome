@@ -303,8 +303,6 @@ class LivedeskApp extends Adw.Application {
             default_height: 720,
             icon_name: ICON_ID,
         });
-        this._installCss();
-
         const root = new Gtk.Box({orientation: Gtk.Orientation.VERTICAL});
         this._window.set_content(root);
 
@@ -352,28 +350,6 @@ class LivedeskApp extends Adw.Application {
         stack.add_named(this._galleryPage(), 'gallery');
         stack.add_named(this._settingsPage(), 'settings');
         stack.visible_child_name = 'gallery';
-    }
-
-    _installCss() {
-        const provider = new Gtk.CssProvider();
-        const css = `
-            .livedesk-tile {
-                padding: 6px;
-            }
-            .livedesk-tile-selected {
-                background-color: @theme_selected_bg_color;
-                color: @theme_selected_fg_color;
-            }
-            .livedesk-title {
-                font-weight: 500;
-            }
-        `;
-        provider.load_from_data(css, -1);
-        Gtk.StyleContext.add_provider_for_display(
-            Gdk.Display.get_default(),
-            provider,
-            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
-        );
     }
 
     _iconButton(iconName, tooltip, callback) {
@@ -571,10 +547,7 @@ class LivedeskApp extends Adw.Application {
             valign: Gtk.Align.START,
             hexpand: false,
             vexpand: false,
-            css_classes: ['livedesk-tile'],
         });
-        if (this._config.selected === uri)
-            card.add_css_class('livedesk-tile-selected');
 
         const thumb = thumbnailForUri(uri);
         let preview;
@@ -611,11 +584,21 @@ class LivedeskApp extends Adw.Application {
             justify: Gtk.Justification.CENTER,
             xalign: 0.5,
             width_request: THUMB_WIDTH,
-            css_classes: ['livedesk-title'],
         });
         label.tooltip_text = 'Double-click to edit title';
         label.add_controller(this._doubleClick(() => this._editTitle(uri)));
         card.append(label);
+
+        if (this._config.selected === uri) {
+            const selected = new Gtk.Label({
+                label: 'Selected',
+                justify: Gtk.Justification.CENTER,
+                xalign: 0.5,
+                width_request: THUMB_WIDTH,
+                css_classes: ['dim-label'],
+            });
+            card.append(selected);
+        }
 
         return card;
     }

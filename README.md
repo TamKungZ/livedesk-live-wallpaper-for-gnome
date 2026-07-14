@@ -27,6 +27,8 @@ configuration.
 Unlike hidden fullscreen-player approaches, Livedesk draws inside GNOME
 Shell's background group, behind normal windows.
 
+For installation steps, see [SETUP.md](SETUP.md).
+
 ## Features
 
 - Video wallpaper rendered as a GNOME Shell background actor
@@ -84,13 +86,12 @@ sudo apt install libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
 
 ```bash
 ./install.sh
+livedesk-setup
 ```
 
-Then enable and start the components:
+Then open the app:
 
 ```bash
-systemctl --user enable --now livedesk-daemon
-gnome-extensions enable livedesk@me.tamkungz
 livedesk
 ```
 
@@ -219,9 +220,7 @@ from `gnome-shell --version` during post-install:
 After installing a package, finish setup for the current user:
 
 ```bash
-systemctl --user daemon-reload
-systemctl --user enable --now livedesk-daemon
-gnome-extensions enable livedesk@me.tamkungz
+livedesk-setup
 livedesk
 ```
 
