@@ -11,7 +11,7 @@
   <p>
     <a href="https://github.com/TamKungZ/livedesk-live-wallpaper-for-gnome/actions/workflows/release.yml"><img alt="Release workflow" src="https://img.shields.io/github/actions/workflow/status/TamKungZ/livedesk-live-wallpaper-for-gnome/release.yml?branch=main&label=release"></a>
     <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue"></a>
-    <img alt="GNOME Shell" src="https://img.shields.io/badge/GNOME%20Shell-40--50-4a86cf">
+    <img alt="GNOME Shell" src="https://img.shields.io/badge/GNOME%20Shell-40--51-4a86cf">
     <img alt="GTK4" src="https://img.shields.io/badge/GTK-4-4a86cf">
     <img alt="Libadwaita" src="https://img.shields.io/badge/Libadwaita-1-4a86cf">
     <img alt="Rust" src="https://img.shields.io/badge/Rust-1.77-b7410e">
@@ -34,7 +34,7 @@ Shell's background group, behind normal windows.
 - Rust daemon (`livedesk-daemon`) using GStreamer for decoding
 - Shared-memory frame handoff between daemon and Shell extension
 - D-Bus controls for source, playback, mute, and frame paths
-- GNOME Shell 40-50 support through separate extension variants
+- GNOME Shell 40-51 support through separate extension variants
 - Debian and RPM packaging scripts
 - GPL-3.0-or-later licensed
 
@@ -101,7 +101,7 @@ Alt+F2, `r`, Enter.
 The installer chooses the correct extension variant for the current
 GNOME Shell version:
 
-- GNOME 45-50: ES module extension
+- GNOME 45-51: ES module extension
 - GNOME 40-44: legacy `imports.*` extension
 
 ## Usage
@@ -177,7 +177,7 @@ scripts/build-extension-zip.sh all
 
 Outputs:
 
-- `dist/livedesk-extension-gnome45-50.zip`
+- `dist/livedesk-extension-gnome45-51.zip`
 - `dist/livedesk-extension-gnome40-44.zip`
 
 For <https://extensions.gnome.org/upload/>, upload the zip matching the
@@ -261,7 +261,7 @@ livedesk/
 ├── app/                     GTK4/Libadwaita settings app
 ├── data/                    desktop entry
 ├── daemon/                  Rust + GStreamer decode daemon
-├── shell-extension/         GNOME 45-50 extension
+├── shell-extension/         GNOME 45-51 extension
 ├── shell-extension-legacy/  GNOME 40-44 extension
 ├── scripts/                 package and extension zip builders
 ├── config.example.json
