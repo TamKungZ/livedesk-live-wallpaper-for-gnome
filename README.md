@@ -19,7 +19,7 @@
   </p>
 
   <img
-    src="https://static.tamkungz.me/assets-image/livedesk-live-wallpaper/preview/livedesk-live-wallpaper-preview.webp"
+    src="https://pub-df28fb9f69aa4326a1c6e10fb1f2abdc.r2.dev/assets-image/livedesk-live-wallpaper/preview/livedesk-live-wallpaper-preview.webp"
     alt="Animated preview of Livedesk running a live video wallpaper on GNOME"
     width="900"
   />
