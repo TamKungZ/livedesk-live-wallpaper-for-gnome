@@ -17,6 +17,7 @@ use dbus::blocking::Connection;
 use dbus_crossroads::{Context, Crossroads, MethodErr};
 use std::collections::HashMap;
 use std::sync::Mutex;
+use std::time::Duration;
 
 pub struct WallpaperService {
     pub monitors: Mutex<HashMap<String, MonitorPipeline>>,
@@ -140,5 +141,13 @@ pub fn serve(service: WallpaperService) -> anyhow::Result<()> {
     cr.serve(&conn)?;
     // cr.serve only returns on connection loss; give the caller a chance
     // to decide whether that's fatal.
+    Ok(())
+}
+
+/// Convenience used by `main` for a graceful poll-based loop when you'd
+/// rather not block on `cr.serve` directly.
+#[allow(dead_code)]
+pub fn process_for(conn: &Connection, timeout: Duration) -> anyhow::Result<()> {
+    conn.process(timeout)?;
     Ok(())
 }

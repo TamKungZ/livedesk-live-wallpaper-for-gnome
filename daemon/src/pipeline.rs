@@ -18,6 +18,8 @@ pub struct MonitorPipeline {
     pub monitor: String,
     pipeline: gst::Element,
     _frame_buf: Arc<Mutex<Option<FrameBuffer>>>,
+    width: u32,
+    height: u32,
 }
 
 impl MonitorPipeline {
@@ -129,6 +131,8 @@ impl MonitorPipeline {
             monitor: monitor.to_string(),
             pipeline: playbin,
             _frame_buf: frame_buf,
+            width,
+            height,
         })
     }
 
@@ -159,6 +163,21 @@ impl MonitorPipeline {
             .set_property("mute", muted);
     }
 
+    /// Re-seek to the start. The bus watch already does this on EOS, but
+    /// keeping it public makes future D-Bus/manual loop controls simpler.
+    #[allow(dead_code)]
+    pub fn seek_to_start(&self) -> Result<()> {
+        self.pipeline.seek_simple(
+            gst::SeekFlags::FLUSH | gst::SeekFlags::KEY_UNIT,
+            gst::ClockTime::ZERO,
+        )?;
+        Ok(())
+    }
+
+    #[allow(dead_code)]
+    pub fn dimensions(&self) -> (u32, u32) {
+        (self.width, self.height)
+    }
 }
 
 impl Drop for MonitorPipeline {
