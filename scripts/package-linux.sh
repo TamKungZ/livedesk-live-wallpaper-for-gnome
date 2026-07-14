@@ -79,7 +79,7 @@ Version: $VERSION
 Release: 1%{?dist}
 Summary: Live video wallpaper for GNOME
 License: GPL-3.0-or-later
-URL: https://github.com/TamKungZ/Livedesk
+URL: https://github.com/TamKungZ/livedesk-live-wallpaper-for-gnome
 Source0: livedesk-%{version}.tar.gz
 Requires: gjs
 Requires: gtk4

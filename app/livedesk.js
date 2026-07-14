@@ -14,10 +14,11 @@ const CONFIG_DIR = GLib.build_filenamev([GLib.get_user_config_dir(), 'livedesk']
 const CONFIG_PATH = GLib.build_filenamev([CONFIG_DIR, 'config.json']);
 const CACHE_DIR = GLib.build_filenamev([GLib.get_user_cache_dir(), 'livedesk']);
 const THUMB_DIR = GLib.build_filenamev([CACHE_DIR, 'thumbnails']);
-const TILE_WIDTH = 148;
-const TILE_HEIGHT = 122;
-const THUMB_WIDTH = 136;
-const THUMB_HEIGHT = 76;
+const TILE_WIDTH = 118;
+const TILE_HEIGHT = 96;
+const THUMB_WIDTH = 106;
+const THUMB_HEIGHT = 60;
+const GRID_COLUMNS = 8;
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.webm', '.mkv', '.mov', '.avi', '.m4v', '.ogv']);
 
 const DBUS_IFACE_XML = `
@@ -61,6 +62,7 @@ function defaultConfig() {
     return {
         library_dir: defaultLibraryDir(),
         library: [],
+        titles: {},
         selected: '',
         muted: true,
         monitors: {
@@ -79,6 +81,7 @@ function loadConfig() {
         const config = {...defaultConfig(), ...JSON.parse(new TextDecoder().decode(bytes))};
         config.monitors = {...defaultConfig().monitors, ...(config.monitors ?? {})};
         config.library = Array.isArray(config.library) ? config.library : [];
+        config.titles = config.titles && typeof config.titles === 'object' ? config.titles : {};
         config.library_dir = config.library_dir || defaultLibraryDir();
 
         const firstMonitor = Object.keys(config.monitors)[0] ?? 'monitor-0';
@@ -116,6 +119,10 @@ function displayNameForUri(uri) {
     if (path === uri)
         return uri;
     return GLib.path_get_basename(path);
+}
+
+function titleForUri(config, uri) {
+    return config.titles?.[uri] || displayNameForUri(uri);
 }
 
 function isVideoName(name) {
@@ -247,6 +254,7 @@ class LivedeskApp extends Adw.Application {
         this._addAction('play', () => this._callDaemon('PlayRemote'));
         this._addAction('pause', () => this._callDaemon('PauseRemote'));
         this._addAction('stop', () => this._callDaemon('StopRemote'));
+        this._addAction('set-default', () => this._setDefault());
         this._addAction('apply', () => this._saveAndApply());
         this._addAction('settings', () => this._toggleSettings());
         this._addAction('about', () => this._showAbout());
@@ -294,6 +302,7 @@ class LivedeskApp extends Adw.Application {
             default_height: 720,
             icon_name: APP_ID,
         });
+        this._installCss();
 
         const root = new Gtk.Box({orientation: Gtk.Orientation.VERTICAL});
         this._window.set_content(root);
@@ -306,6 +315,9 @@ class LivedeskApp extends Adw.Application {
         header.pack_end(this._menuButton());
         header.pack_end(this._iconButton('emblem-system-symbolic', 'Settings', () => this._toggleSettings()));
         header.pack_end(this._iconButton('view-refresh-symbolic', 'Refresh library', () => this._refreshLibrary()));
+        header.pack_end(this._iconButton('media-playback-stop-symbolic', 'Stop', () => this._callDaemon('StopRemote')));
+        header.pack_end(this._iconButton('media-playback-pause-symbolic', 'Pause', () => this._callDaemon('PauseRemote')));
+        header.pack_end(this._iconButton('media-playback-start-symbolic', 'Play', () => this._callDaemon('PlayRemote')));
         root.append(header);
 
         const stack = new Gtk.Stack({
@@ -315,9 +327,52 @@ class LivedeskApp extends Adw.Application {
         root.append(stack);
         this._stack = stack;
 
+        const footer = new Gtk.Box({
+            halign: Gtk.Align.END,
+            spacing: 8,
+            margin_top: 8,
+            margin_bottom: 14,
+            margin_start: 14,
+            margin_end: 14,
+        });
+        this._setDefaultButton = new Gtk.Button({
+            label: 'Set Default',
+            sensitive: Boolean(this._config.selected),
+        });
+        this._setDefaultButton.connect('clicked', () => this._setDefault());
+        footer.append(this._setDefaultButton);
+
+        this._saveApplyButton = new Gtk.Button({label: 'Save and Apply'});
+        this._saveApplyButton.add_css_class('suggested-action');
+        this._saveApplyButton.connect('clicked', () => this._saveAndApply());
+        footer.append(this._saveApplyButton);
+        root.append(footer);
+
         stack.add_named(this._galleryPage(), 'gallery');
         stack.add_named(this._settingsPage(), 'settings');
         stack.visible_child_name = 'gallery';
+    }
+
+    _installCss() {
+        const provider = new Gtk.CssProvider();
+        const css = `
+            .livedesk-tile {
+                padding: 6px;
+                border-radius: 8px;
+            }
+            .livedesk-tile-selected {
+                background: alpha(@accent_bg_color, 0.18);
+            }
+            .livedesk-title {
+                font-weight: 500;
+            }
+        `;
+        provider.load_from_data(css, -1);
+        Gtk.StyleContext.add_provider_for_display(
+            Gdk.Display.get_default(),
+            provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        );
     }
 
     _iconButton(iconName, tooltip, callback) {
@@ -373,19 +428,17 @@ class LivedeskApp extends Adw.Application {
             vexpand: true,
         });
 
-        this._flow = new Gtk.FlowBox({
+        this._grid = new Gtk.Grid({
+            halign: Gtk.Align.START,
             valign: Gtk.Align.START,
-            max_children_per_line: 8,
-            min_children_per_line: 3,
-            selection_mode: Gtk.SelectionMode.NONE,
-            column_spacing: 10,
-            row_spacing: 10,
+            column_spacing: 8,
+            row_spacing: 8,
             margin_top: 18,
             margin_bottom: 18,
             margin_start: 18,
             margin_end: 18,
         });
-        scrolled.set_child(this._flow);
+        scrolled.set_child(this._grid);
         this._reloadGallery();
         return scrolled;
     }
@@ -480,10 +533,10 @@ class LivedeskApp extends Adw.Application {
     }
 
     _reloadGallery() {
-        let child = this._flow.get_first_child();
+        let child = this._grid.get_first_child();
         while (child) {
             const next = child.get_next_sibling();
-            this._flow.remove(child);
+            this._grid.remove(child);
             child = next;
         }
 
@@ -493,12 +546,14 @@ class LivedeskApp extends Adw.Application {
 
         if (this._selectedRow)
             this._selectedRow.subtitle = fileUriToPath(this._config.selected);
+        this._updateActionButtons();
 
-        for (const uri of this._config.library)
-            this._flow.append(this._videoTile(uri));
+        this._config.library.forEach((uri, index) => {
+            this._grid.attach(this._videoTile(uri), index % GRID_COLUMNS, Math.floor(index / GRID_COLUMNS), 1, 1);
+        });
 
         if (this._config.library.length === 0)
-            this._flow.append(this._emptyLibraryTile());
+            this._grid.attach(this._emptyLibraryTile(), 0, 0, 1, 1);
     }
 
     _videoTile(uri) {
@@ -511,10 +566,12 @@ class LivedeskApp extends Adw.Application {
             margin_bottom: 8,
             margin_start: 8,
             margin_end: 8,
-            css_classes: ['card'],
+            halign: Gtk.Align.START,
+            hexpand: false,
+            css_classes: ['livedesk-tile'],
         });
         if (this._config.selected === uri)
-            card.add_css_class('accent');
+            card.add_css_class('livedesk-tile-selected');
 
         const thumb = thumbnailForUri(uri);
         let preview;
@@ -523,31 +580,38 @@ class LivedeskApp extends Adw.Application {
                 file: Gio.File.new_for_path(thumb),
                 width_request: THUMB_WIDTH,
                 height_request: THUMB_HEIGHT,
-                hexpand: true,
+                halign: Gtk.Align.CENTER,
+                hexpand: false,
                 can_shrink: true,
+                content_fit: Gtk.ContentFit.COVER,
             });
         } else {
             preview = new Gtk.Image({
                 icon_name: 'video-x-generic-symbolic',
                 pixel_size: 36,
+                width_request: THUMB_WIDTH,
                 height_request: THUMB_HEIGHT,
-                hexpand: true,
+                halign: Gtk.Align.CENTER,
+                hexpand: false,
             });
         }
         preview.tooltip_text = 'Double-click to use this video';
         preview.add_controller(this._doubleClick(() => {
             this._selectVideo(uri);
-            this._saveAndApply();
+            this._playSelected();
         }));
         card.append(preview);
 
         const label = new Gtk.Label({
-            label: displayNameForUri(uri),
+            label: titleForUri(this._config, uri),
             ellipsize: 3,
-            xalign: 0,
+            justify: Gtk.Justification.CENTER,
+            xalign: 0.5,
+            width_request: THUMB_WIDTH,
+            css_classes: ['livedesk-title'],
         });
-        label.tooltip_text = 'Double-click to rename';
-        label.add_controller(this._doubleClick(() => this._renameVideo(uri)));
+        label.tooltip_text = 'Double-click to edit title';
+        label.add_controller(this._doubleClick(() => this._editTitle(uri)));
         card.append(label);
 
         return card;
@@ -580,24 +644,17 @@ class LivedeskApp extends Adw.Application {
         return gesture;
     }
 
-    _renameVideo(uri) {
-        const path = fileUriToPath(uri);
-        if (!path || path === uri) {
-            this._showError('This video cannot be renamed.');
-            return;
-        }
-
-        const currentName = GLib.path_get_basename(path);
+    _editTitle(uri) {
         const dialog = new Gtk.Dialog({
-            title: 'Rename video',
+            title: 'Edit title',
             transient_for: this._window,
             modal: true,
         });
         dialog.add_button('Cancel', Gtk.ResponseType.CANCEL);
-        dialog.add_button('Rename', Gtk.ResponseType.ACCEPT);
+        dialog.add_button('Save', Gtk.ResponseType.ACCEPT);
 
         const entry = new Gtk.Entry({
-            text: currentName,
+            text: titleForUri(this._config, uri),
             activates_default: true,
             margin_top: 18,
             margin_bottom: 18,
@@ -610,9 +667,9 @@ class LivedeskApp extends Adw.Application {
         dialog.connect('response', (dlg, response) => {
             if (response === Gtk.ResponseType.ACCEPT) {
                 try {
-                    this._applyRename(uri, entry.text);
+                    this._applyTitle(uri, entry.text);
                 } catch (e) {
-                    this._showError(`Failed to rename video: ${e.message}`);
+                    this._showError(`Failed to save title: ${e.message}`);
                 }
             }
             dlg.destroy();
@@ -620,29 +677,13 @@ class LivedeskApp extends Adw.Application {
         dialog.present();
     }
 
-    _applyRename(uri, requestedName) {
-        const oldPath = fileUriToPath(uri);
-        let newName = requestedName.trim();
-        if (!newName)
-            return;
-
-        const oldName = GLib.path_get_basename(oldPath);
-        const oldDot = oldName.lastIndexOf('.');
-        const oldExt = oldDot > 0 ? oldName.slice(oldDot) : '';
-        if (oldExt && !newName.endsWith(oldExt))
-            newName = `${newName}${oldExt}`;
-
-        const dir = GLib.path_get_dirname(oldPath);
-        const newPath = GLib.build_filenamev([dir, newName]);
-        if (newPath === oldPath)
-            return;
-        if (GLib.file_test(newPath, GLib.FileTest.EXISTS))
-            throw new Error('A file with that name already exists.');
-
-        Gio.File.new_for_path(oldPath).move(Gio.File.new_for_path(newPath), Gio.FileCopyFlags.NONE, null, null);
-        const newUri = Gio.File.new_for_path(newPath).get_uri();
-        if (this._config.selected === uri)
-            this._config.selected = newUri;
+    _applyTitle(uri, requestedTitle) {
+        const title = requestedTitle.trim();
+        this._config.titles = this._config.titles ?? {};
+        if (!title || title === displayNameForUri(uri))
+            delete this._config.titles[uri];
+        else
+            this._config.titles[uri] = title;
         this._saveConfigOnly();
         this._reloadGallery();
     }
@@ -651,6 +692,7 @@ class LivedeskApp extends Adw.Application {
         this._config.selected = uri;
         if (this._selectedRow)
             this._selectedRow.subtitle = fileUriToPath(uri);
+        this._updateActionButtons();
         this._reloadGallery();
     }
 
@@ -696,8 +738,19 @@ class LivedeskApp extends Adw.Application {
 
     _refreshLibrary() {
         this._config.library = scanLibrary(this._config);
-        if (this._flow)
+        if (this._grid)
             this._reloadGallery();
+        this._saveConfigOnly();
+    }
+
+    _updateActionButtons() {
+        if (this._setDefaultButton)
+            this._setDefaultButton.sensitive = Boolean(this._config.selected);
+    }
+
+    _setDefault() {
+        if (!this._config.selected)
+            return;
         this._saveConfigOnly();
     }
 
@@ -731,7 +784,20 @@ class LivedeskApp extends Adw.Application {
         const uri = this._config.selected;
         if (uri)
             this._proxy.SetSourceRemote(monitor, uri);
-        this._proxy.SetMutedRemote(monitor, this._mutedSwitch.active);
+        this._proxy.SetMutedRemote(monitor, this._mutedSwitch?.active ?? this._config.muted ?? true);
+        if (uri)
+            this._proxy.PlayRemote(monitor);
+    }
+
+    _playSelected() {
+        this._connectProxy();
+        if (!this._proxy || !this._config.selected)
+            return;
+
+        const monitor = this._activeMonitor();
+        this._proxy.SetSourceRemote(monitor, this._config.selected);
+        this._proxy.SetMutedRemote(monitor, this._mutedSwitch?.active ?? this._config.muted ?? true);
+        this._proxy.PlayRemote(monitor);
     }
 
     _callDaemon(method) {
@@ -750,8 +816,8 @@ class LivedeskApp extends Adw.Application {
             application_icon: APP_ID,
             developer_name: 'TamKungZ_',
             version: '0.1.0',
-            website: 'https://github.com/TamKungZ/Livedesk',
-            issue_url: 'https://github.com/TamKungZ/Livedesk/issues',
+            website: 'https://github.com/TamKungZ/livedesk-live-wallpaper-for-gnome',
+            issue_url: 'https://github.com/TamKungZ/livedesk-live-wallpaper-for-gnome/issues',
             license_type: Gtk.License.GPL_3_0,
         });
         about.present();
