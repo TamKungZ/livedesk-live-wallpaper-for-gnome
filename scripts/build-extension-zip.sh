@@ -32,19 +32,22 @@ build_zip() {
 
 mode="${1:-all}"
 
+mkdir -p "$DIST_DIR"
+rm -f "$DIST_DIR"/livedesk-extension-gnome*.zip
+
 case "$mode" in
-  modern|45-49)
-    build_zip "GNOME 45-49" "$ROOT_DIR/shell-extension" "livedesk-extension-gnome45-49.zip"
+  modern|45-50|45-49)
+    build_zip "GNOME 45-50" "$ROOT_DIR/shell-extension" "livedesk-extension-gnome45-50.zip"
     ;;
   legacy|40-44)
     build_zip "GNOME 40-44" "$ROOT_DIR/shell-extension-legacy" "livedesk-extension-gnome40-44.zip"
     ;;
   all)
-    build_zip "GNOME 45-49" "$ROOT_DIR/shell-extension" "livedesk-extension-gnome45-49.zip"
+    build_zip "GNOME 45-50" "$ROOT_DIR/shell-extension" "livedesk-extension-gnome45-50.zip"
     build_zip "GNOME 40-44" "$ROOT_DIR/shell-extension-legacy" "livedesk-extension-gnome40-44.zip"
     ;;
   *)
-    echo "Usage: $0 [all|modern|legacy|45-49|40-44]" >&2
+    echo "Usage: $0 [all|modern|legacy|45-50|45-49|40-44]" >&2
     exit 2
     ;;
 esac
