@@ -359,10 +359,10 @@ class LivedeskApp extends Adw.Application {
         const css = `
             .livedesk-tile {
                 padding: 6px;
-                border-radius: 8px;
             }
             .livedesk-tile-selected {
-                background: alpha(@accent_bg_color, 0.18);
+                background-color: @theme_selected_bg_color;
+                color: @theme_selected_fg_color;
             }
             .livedesk-title {
                 font-weight: 500;
