@@ -19,6 +19,10 @@ const TILE_WIDTH = 210;
 const TILE_HEIGHT = 154;
 const THUMB_WIDTH = 190;
 const THUMB_HEIGHT = 107;
+const GRID_MARGIN = 18;
+const GRID_MIN_GAP = 18;
+const GRID_MAX_GAP = 80;
+const GRID_MAX_COLUMNS = 6;
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.webm', '.mkv', '.mov', '.avi', '.m4v', '.ogv']);
 
 const DBUS_IFACE_XML = `
@@ -405,22 +409,30 @@ class LivedeskApp extends Adw.Application {
             hexpand: true,
             vexpand: true,
         });
+        this._galleryScrolled = scrolled;
 
-        this._flow = new Gtk.FlowBox({
-            halign: Gtk.Align.START,
+        this._grid = new Gtk.Grid({
+            halign: Gtk.Align.FILL,
             valign: Gtk.Align.START,
             hexpand: true,
-            selection_mode: Gtk.SelectionMode.NONE,
-            min_children_per_line: 1,
-            max_children_per_line: 6,
-            column_spacing: 10,
-            row_spacing: 12,
-            margin_top: 18,
-            margin_bottom: 18,
-            margin_start: 18,
-            margin_end: 18,
+            row_spacing: 16,
+            margin_top: GRID_MARGIN,
+            margin_bottom: GRID_MARGIN,
+            margin_start: GRID_MARGIN,
+            margin_end: GRID_MARGIN,
         });
-        scrolled.set_child(this._flow);
+        scrolled.set_child(this._grid);
+        this._galleryLayoutTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
+            if (!this._grid)
+                return GLib.SOURCE_REMOVE;
+            const width = Math.max(
+                this._galleryScrolled?.get_width?.() ?? 0,
+                this._window?.get_width?.() ?? 0
+            );
+            if (width > 0 && width !== this._galleryWidth)
+                this._layoutGalleryGrid();
+            return GLib.SOURCE_CONTINUE;
+        });
         this._reloadGallery();
         return scrolled;
     }
@@ -515,13 +527,6 @@ class LivedeskApp extends Adw.Application {
     }
 
     _reloadGallery() {
-        let child = this._flow.get_first_child();
-        while (child) {
-            const next = child.get_next_sibling();
-            this._flow.remove(child);
-            child = next;
-        }
-
         this._config.library = scanLibrary(this._config);
         if (this._config.selected && !this._config.library.includes(this._config.selected))
             this._config.selected = this._config.library[0] ?? '';
@@ -530,11 +535,49 @@ class LivedeskApp extends Adw.Application {
             this._selectedRow.subtitle = fileUriToPath(this._config.selected);
         this._updateActionButtons();
 
-        for (const uri of this._config.library)
-            this._flow.append(this._videoTile(uri));
+        this._galleryTiles = this._config.library.map(uri => this._videoTile(uri));
 
         if (this._config.library.length === 0)
-            this._flow.append(this._emptyLibraryTile());
+            this._galleryTiles = [this._emptyLibraryTile()];
+
+        this._layoutGalleryGrid();
+    }
+
+    _layoutGalleryGrid() {
+        if (!this._grid || !this._galleryTiles)
+            return;
+
+        let child = this._grid.get_first_child();
+        while (child) {
+            const next = child.get_next_sibling();
+            this._grid.remove(child);
+            child = next;
+        }
+
+        const width = Math.max(
+            this._galleryScrolled?.get_width?.() ?? 0,
+            this._window?.get_width?.() ?? 0,
+            1280
+        );
+        this._galleryWidth = width;
+        const available = Math.max(TILE_WIDTH, width - (GRID_MARGIN * 2));
+        const naturalColumns = Math.floor((available + GRID_MIN_GAP) / (TILE_WIDTH + GRID_MIN_GAP));
+        const columns = Math.max(1, Math.min(GRID_MAX_COLUMNS, naturalColumns));
+        const usedTileWidth = columns * TILE_WIDTH;
+        const rawGap = columns > 1 ? Math.floor((available - usedTileWidth) / (columns - 1)) : 0;
+        const gap = columns > 1 ? Math.max(GRID_MIN_GAP, Math.min(GRID_MAX_GAP, rawGap)) : 0;
+        const usedWidth = usedTileWidth + (gap * Math.max(0, columns - 1));
+        const sideMargin = Math.max(GRID_MARGIN, Math.floor((width - usedWidth) / 2));
+
+        this._grid.column_spacing = gap;
+        this._grid.margin_start = sideMargin;
+        this._grid.margin_end = sideMargin;
+
+        this._galleryTiles.forEach((tile, index) => {
+            const column = index % columns;
+            const row = Math.floor(index / columns);
+            this._grid.attach(tile, column, row, 1, 1);
+        });
     }
 
     _videoTile(uri) {
@@ -731,7 +774,7 @@ class LivedeskApp extends Adw.Application {
 
     _refreshLibrary() {
         this._config.library = scanLibrary(this._config);
-        if (this._flow)
+        if (this._grid)
             this._reloadGallery();
         this._saveConfigOnly();
     }
