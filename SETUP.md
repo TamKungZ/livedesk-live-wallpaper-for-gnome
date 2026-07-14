@@ -4,7 +4,19 @@ This guide covers the easiest way to install and enable Livedesk.
 
 ## Recommended Install
 
-Install the Debian package from `dist/` or from a GitHub release:
+On Debian/Ubuntu, install from the TamKungZ_ APT repository:
+
+```bash
+curl -fsSL https://packages.tamkungz.me/gpg.key \
+  | sudo gpg --dearmor -o /usr/share/keyrings/tamkungz-archive-keyring.gpg
+echo "deb [arch=amd64 signed-by=/usr/share/keyrings/tamkungz-archive-keyring.gpg] https://packages.tamkungz.me/apt stable main" \
+  | sudo tee /etc/apt/sources.list.d/tamkungz.list
+sudo apt update
+sudo apt install livedesk
+livedesk-setup
+```
+
+Or install a local Debian package from `dist/` or from a GitHub release:
 
 ```bash
 sudo dpkg -i dist/livedesk_0.1.0_amd64.deb
@@ -28,6 +40,25 @@ Put videos in:
 Double-click a thumbnail, or click `Save and Apply`.
 
 ## RPM Install
+
+On Fedora/RHEL-like distributions:
+
+```bash
+sudo rpm --import https://packages.tamkungz.me/gpg.key
+sudo tee /etc/yum.repos.d/tamkungz.repo >/dev/null <<'EOF'
+[tamkungz]
+name=TamKungZ_ Packages
+baseurl=https://packages.tamkungz.me/rpm/x86_64
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=https://packages.tamkungz.me/gpg.key
+EOF
+sudo dnf install livedesk
+livedesk-setup
+```
+
+Or install a local RPM:
 
 ```bash
 sudo rpm -Uvh dist/livedesk-0.1.0-1.x86_64.rpm

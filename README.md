@@ -82,6 +82,37 @@ runtime is installed but the development headers are missing. Install:
 sudo apt install libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
 ```
 
+## Install
+
+Debian/Ubuntu:
+
+```bash
+curl -fsSL https://packages.tamkungz.me/gpg.key \
+  | sudo gpg --dearmor -o /usr/share/keyrings/tamkungz-archive-keyring.gpg
+echo "deb [arch=amd64 signed-by=/usr/share/keyrings/tamkungz-archive-keyring.gpg] https://packages.tamkungz.me/apt stable main" \
+  | sudo tee /etc/apt/sources.list.d/tamkungz.list
+sudo apt update
+sudo apt install livedesk
+livedesk-setup
+```
+
+Fedora/RHEL-like distributions:
+
+```bash
+sudo rpm --import https://packages.tamkungz.me/gpg.key
+sudo tee /etc/yum.repos.d/tamkungz.repo >/dev/null <<'EOF'
+[tamkungz]
+name=TamKungZ_ Packages
+baseurl=https://packages.tamkungz.me/rpm/x86_64
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=https://packages.tamkungz.me/gpg.key
+EOF
+sudo dnf install livedesk
+livedesk-setup
+```
+
 ## Install From Source
 
 ```bash
@@ -254,8 +285,9 @@ The repository includes a GitHub Actions workflow at:
 ```
 
 It builds the daemon, extension zips, `.deb`, and `.rpm`, then uploads
-the artifacts. Tagged releases matching `v*.*.*` also publish GitHub
-Release assets.
+the artifacts. Tagged releases matching `v*.*.*` also publish signed
+GitHub Release assets and update the APT/RPM repositories in
+`TamKungZ/packages.tamkungz.me`.
 
 ## Development Notes
 
