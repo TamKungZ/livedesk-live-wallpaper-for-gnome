@@ -402,12 +402,14 @@ class LivedeskApp extends Adw.Application {
         const scrolled = new Gtk.ScrolledWindow({
             hscrollbar_policy: Gtk.PolicyType.NEVER,
             vscrollbar_policy: Gtk.PolicyType.AUTOMATIC,
+            hexpand: true,
             vexpand: true,
         });
 
         this._flow = new Gtk.FlowBox({
-            halign: Gtk.Align.START,
+            halign: Gtk.Align.FILL,
             valign: Gtk.Align.START,
+            hexpand: true,
             selection_mode: Gtk.SelectionMode.NONE,
             min_children_per_line: 1,
             max_children_per_line: 6,
