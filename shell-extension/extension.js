@@ -166,6 +166,7 @@ export default class VideoWallpaperExtension extends Extension {
         this._proxy = null;
         this._fullscreenSignalId = null;
         this._lockSignalId = null;
+        this._retryTimeoutId = null;
 
         this._connectDBus();
         this._rebuildMonitors();
@@ -205,6 +206,10 @@ export default class VideoWallpaperExtension extends Extension {
             Main.sessionMode.disconnect(this._lockSignalId);
             this._lockSignalId = null;
         }
+        if (this._retryTimeoutId) {
+            GLib.source_remove(this._retryTimeoutId);
+            this._retryTimeoutId = null;
+        }
 
         for (const m of this._monitors)
             m.destroy();
@@ -215,21 +220,43 @@ export default class VideoWallpaperExtension extends Extension {
 
     _connectDBus() {
         try {
-            this._proxy = new WallpaperProxy(
-                Gio.DBus.session,
-                DBUS_NAME,
-                DBUS_PATH
-            );
+            this._proxy = new WallpaperProxy(Gio.DBus.session, DBUS_NAME, DBUS_PATH);
+            return true;
         } catch (e) {
+            this._proxy = null;
             logError(e, 'livedesk: could not connect to daemon over D-Bus');
             this._maybeSpawnDaemon();
+            this._scheduleReconnect();
+            return false;
         }
+    }
+
+    _scheduleReconnect() {
+        if (this._retryTimeoutId)
+            return;
+
+        this._retryTimeoutId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 2, () => {
+            try {
+                this._proxy = new WallpaperProxy(Gio.DBus.session, DBUS_NAME, DBUS_PATH);
+                this._retryTimeoutId = null;
+                log('livedesk: connected to daemon over D-Bus');
+                this._rebuildMonitors();
+                this._applySettingsToDaemon();
+                return GLib.SOURCE_REMOVE;
+            } catch (_) {
+                return GLib.SOURCE_CONTINUE;
+            }
+        });
     }
 
     _maybeSpawnDaemon() {
         // Fallback only -- running the daemon as a systemd --user unit
         // (see install.sh) is the robust option. This just covers "user
         // forgot to enable the service".
+        try {
+            GLib.spawn_command_line_async('systemctl --user start livedesk-daemon.service');
+        } catch (_) {
+        }
         try {
             const binPath = GLib.build_filenamev([GLib.get_home_dir(), '.local', 'bin', 'livedesk-daemon']);
             if (GLib.file_test(binPath, GLib.FileTest.IS_EXECUTABLE)) {
