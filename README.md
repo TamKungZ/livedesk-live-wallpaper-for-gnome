@@ -17,6 +17,12 @@
     <img alt="Rust" src="https://img.shields.io/badge/Rust-1.77-b7410e">
     <img alt="Packages" src="https://img.shields.io/badge/packages-DEB%20%7C%20RPM-2ea44f">
   </p>
+
+  <img
+    src="https://static.tamkungz.me/assets-image/livedesk-live-wallpaper/preview/livedesk-live-wallpaper-preview.webp"
+    alt="Animated preview of Livedesk running a live video wallpaper on GNOME"
+    width="900"
+  />
 </div>
 
 Livedesk turns a video file into a GNOME desktop background. It uses a
