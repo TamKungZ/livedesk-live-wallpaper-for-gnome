@@ -137,6 +137,7 @@ impl MonitorPipeline {
     }
 
     pub fn set_source(&self, uri: &str) -> Result<()> {
+        println!("[{}] source set to {uri}", self.monitor);
         self.pipeline.set_state(gst::State::Null)?;
         self.pipeline.set_property("uri", uri);
         self.pipeline.set_state(gst::State::Playing)?;
