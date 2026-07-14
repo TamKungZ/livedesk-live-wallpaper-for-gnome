@@ -153,6 +153,11 @@ target GNOME Shell series. The modern upload file is
 extensions.gnome.org may require submitting them as separate extension
 versions after review rather than one combined zip.
 
+The extension zips are only GNOME Shell extensions. They include the
+extension preferences UI, but they do not install the standalone GTK app
+or the native daemon. Use the `.deb`/`.rpm` packages or `./install.sh`
+for a complete install with `livedesk` and `livedesk-daemon`.
+
 ### Debian and RPM packages
 
 Build release packages with:
@@ -163,6 +168,14 @@ scripts/package-linux.sh
 
 The output files are written to `dist/`, including `.deb`, `.rpm`, and
 the two GNOME extension upload zips.
+
+If Cargo fails with missing `gstreamer-1.0.pc`, `gstreamer-app-1.0.pc`,
+or `gstreamer-video-1.0.pc`, the GStreamer runtime/plugins are installed
+but the development headers are not. On Debian/Ubuntu, install:
+
+```
+sudo apt install libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+```
 
 ### Rust toolchain note
 
