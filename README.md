@@ -1,4 +1,23 @@
-# Livedesk - Live Wallpaper for GNOME
+<div align="center">
+  <img
+    src="https://dev.tamkungz.me/assets-image/livedesk-live-wallpaper/icons/hicolor/scalable/apps/me.tamkungz.Livedesk.svg"
+    alt="Livedesk icon"
+    width="128"
+    height="128"
+  />
+
+  <h1>Livedesk - Live Wallpaper for GNOME</h1>
+
+  <p>
+    <a href="https://github.com/TamKungZ/livedesk-live-wallpaper-for-gnome/actions/workflows/release.yml"><img alt="Release workflow" src="https://img.shields.io/github/actions/workflow/status/TamKungZ/livedesk-live-wallpaper-for-gnome/release.yml?branch=main&label=release"></a>
+    <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue"></a>
+    <img alt="GNOME Shell" src="https://img.shields.io/badge/GNOME%20Shell-40--49-4a86cf">
+    <img alt="GTK4" src="https://img.shields.io/badge/GTK-4-4a86cf">
+    <img alt="Libadwaita" src="https://img.shields.io/badge/Libadwaita-1-4a86cf">
+    <img alt="Rust" src="https://img.shields.io/badge/Rust-1.77-b7410e">
+    <img alt="Packages" src="https://img.shields.io/badge/packages-DEB%20%7C%20RPM-2ea44f">
+  </p>
+</div>
 
 Livedesk turns a video file into a GNOME desktop background. It uses a
 GNOME Shell extension for the compositor-facing wallpaper actor, a small
