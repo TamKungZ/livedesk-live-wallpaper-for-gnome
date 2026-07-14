@@ -9,6 +9,7 @@
 - Added Debian and RPM package builders.
 - Added package post-install variant selection based on `gnome-shell --version`.
 - Added `livedesk-setup` helper for first-run setup.
+- Added `livedesk-uninstall` helper for clean removal and optional purge.
 - Separated GTK app ID from daemon D-Bus name to avoid session bus conflicts.
 - Fixed packaged systemd service path to use `/usr/bin/livedesk-daemon`.
 - Added D-Bus reconnect handling in the extension when the daemon starts late.

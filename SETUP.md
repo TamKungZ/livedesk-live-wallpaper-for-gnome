@@ -107,17 +107,19 @@ Check GNOME Shell extension logs:
 journalctl --user -b /usr/bin/gnome-shell -n 120 --no-pager | grep -i livedesk
 ```
 
-## Reset
+## Uninstall
 
-Disable the extension and stop the daemon:
-
-```bash
-gnome-extensions disable livedesk@me.tamkungz
-systemctl --user stop livedesk-daemon
-```
-
-Remove the config if needed:
+For a clean uninstall:
 
 ```bash
-rm -rf ~/.config/livedesk ~/.cache/livedesk
+livedesk-uninstall
 ```
+
+To also remove settings and thumbnail cache:
+
+```bash
+livedesk-uninstall --purge
+```
+
+The video library at `~/Videos/Livedesk` is kept by default. To remove it
+too, pass `--purge-library`.

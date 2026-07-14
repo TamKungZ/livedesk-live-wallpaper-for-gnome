@@ -206,6 +206,8 @@ The `.deb` and `.rpm` packages include:
 
 - `livedesk`
 - `livedesk-daemon`
+- `livedesk-setup`
+- `livedesk-uninstall`
 - desktop entry
 - systemd user service
 - GNOME Shell extension files
@@ -227,6 +229,21 @@ livedesk
 If `gnome-extensions` says the extension does not exist, log out and
 back in first so GNOME Shell can discover the newly installed system
 extension, then run the enable command again.
+
+Uninstall:
+
+```bash
+livedesk-uninstall
+```
+
+To also remove settings and thumbnail cache:
+
+```bash
+livedesk-uninstall --purge
+```
+
+The video library at `~/Videos/Livedesk` is kept unless
+`--purge-library` is passed.
 
 ## GitHub Releases
 

@@ -30,6 +30,7 @@ install_tree() {
   install -m 755 "$ROOT_DIR/daemon/target/release/livedesk-daemon" "$STAGE/usr/bin/livedesk-daemon"
   install -m 755 "$ROOT_DIR/app/livedesk.js" "$STAGE/usr/bin/livedesk"
   install -m 755 "$ROOT_DIR/scripts/livedesk-setup.sh" "$STAGE/usr/bin/livedesk-setup"
+  install -m 755 "$ROOT_DIR/scripts/livedesk-uninstall.sh" "$STAGE/usr/bin/livedesk-uninstall"
   install -m 644 "$ROOT_DIR/data/me.tamkungz.LivedeskApp.desktop" "$STAGE/usr/share/applications/me.tamkungz.LivedeskApp.desktop"
   install -m 644 "$ROOT_DIR/data/icons/hicolor/256x256/apps/me.tamkungz.Livedesk.png" "$STAGE/usr/share/icons/hicolor/256x256/apps/me.tamkungz.Livedesk.png"
   install -m 644 "$ROOT_DIR/data/icons/hicolor/scalable/apps/me.tamkungz.Livedesk.svg" "$STAGE/usr/share/icons/hicolor/scalable/apps/me.tamkungz.Livedesk.svg"
@@ -174,6 +175,7 @@ rm -f /usr/share/applications/me.tamkungz.Livedesk.desktop
 /usr/bin/livedesk
 /usr/bin/livedesk-daemon
 /usr/bin/livedesk-setup
+/usr/bin/livedesk-uninstall
 /usr/share/applications/me.tamkungz.LivedeskApp.desktop
 /usr/share/gnome-shell/extensions/livedesk@me.tamkungz
 /usr/share/icons/hicolor/256x256/apps/me.tamkungz.Livedesk.png

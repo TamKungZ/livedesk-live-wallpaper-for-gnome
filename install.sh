@@ -57,6 +57,7 @@ install -m 755 "$SCRIPT_DIR/daemon/target/release/livedesk-daemon" "$BIN_DEST/li
 echo "==> Installing Livedesk app to $BIN_DEST"
 install -m 755 "$SCRIPT_DIR/app/livedesk.js" "$BIN_DEST/livedesk"
 install -m 755 "$SCRIPT_DIR/scripts/livedesk-setup.sh" "$BIN_DEST/livedesk-setup"
+install -m 755 "$SCRIPT_DIR/scripts/livedesk-uninstall.sh" "$BIN_DEST/livedesk-uninstall"
 mkdir -p "$APP_DEST"
 install -m 644 "$SCRIPT_DIR/data/me.tamkungz.LivedeskApp.desktop" "$APP_DEST/me.tamkungz.LivedeskApp.desktop"
 mkdir -p "$HOME/.local/share/icons/hicolor/256x256/apps" "$HOME/.local/share/icons/hicolor/scalable/apps"
