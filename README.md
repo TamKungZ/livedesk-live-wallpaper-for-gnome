@@ -92,12 +92,17 @@ livedesk
 
 The app can:
 
-- select a video file
+- show saved videos as a thumbnail gallery
+- select a video from the gallery and apply it immediately
+- add video files to the gallery
 - choose the monitor key, such as `monitor-0`
 - set output width and height
 - mute or unmute playback
 - start the daemon
 - send play, pause, stop, and apply commands over D-Bus
+
+Use the hamburger menu in the top-right corner for daemon controls and
+settings.
 
 The app writes configuration to:
 
