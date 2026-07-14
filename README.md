@@ -1,6 +1,6 @@
 <div align="center">
   <img
-    src="https://dev.tamkungz.me/assets-image/livedesk-live-wallpaper/icons/hicolor/scalable/apps/me.tamkungz.Livedesk.svg"
+    src="https://static.tamkungz.me/assets-image/livedesk-live-wallpaper/icons/hicolor/scalable/apps/me.tamkungz.Livedesk.svg"
     alt="Livedesk icon"
     width="128"
     height="128"
