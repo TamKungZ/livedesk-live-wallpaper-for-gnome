@@ -200,7 +200,7 @@ class LivedeskExtension {
 
     _connectDBus() {
         try {
-            this._proxy = new WallpaperProxy(Gio.DBus.session, DBUS_NAME, DBUS_PATH);
+            this._proxy = this._createProxy();
             return true;
         } catch (e) {
             this._proxy = null;
@@ -211,13 +211,20 @@ class LivedeskExtension {
         }
     }
 
+    _createProxy() {
+        const proxy = new WallpaperProxy(Gio.DBus.session, DBUS_NAME, DBUS_PATH);
+        if (!proxy.get_name_owner())
+            throw new Error('daemon D-Bus name has no owner yet');
+        return proxy;
+    }
+
     _scheduleReconnect() {
         if (this._retryTimeoutId)
             return;
 
         this._retryTimeoutId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 2, () => {
             try {
-                this._proxy = new WallpaperProxy(Gio.DBus.session, DBUS_NAME, DBUS_PATH);
+                this._proxy = this._createProxy();
                 this._retryTimeoutId = null;
                 log('livedesk: connected to daemon over D-Bus');
                 this._rebuildMonitors();
