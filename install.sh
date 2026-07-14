@@ -57,10 +57,11 @@ install -m 755 "$SCRIPT_DIR/daemon/target/release/livedesk-daemon" "$BIN_DEST/li
 echo "==> Installing Livedesk app to $BIN_DEST"
 install -m 755 "$SCRIPT_DIR/app/livedesk.js" "$BIN_DEST/livedesk"
 mkdir -p "$APP_DEST"
-install -m 644 "$SCRIPT_DIR/data/me.tamkungz.Livedesk.desktop" "$APP_DEST/me.tamkungz.Livedesk.desktop"
+install -m 644 "$SCRIPT_DIR/data/me.tamkungz.LivedeskApp.desktop" "$APP_DEST/me.tamkungz.LivedeskApp.desktop"
 mkdir -p "$HOME/.local/share/icons/hicolor/256x256/apps" "$HOME/.local/share/icons/hicolor/scalable/apps"
 install -m 644 "$SCRIPT_DIR/data/icons/hicolor/256x256/apps/me.tamkungz.Livedesk.png" "$HOME/.local/share/icons/hicolor/256x256/apps/me.tamkungz.Livedesk.png"
 install -m 644 "$SCRIPT_DIR/data/icons/hicolor/scalable/apps/me.tamkungz.Livedesk.svg" "$HOME/.local/share/icons/hicolor/scalable/apps/me.tamkungz.Livedesk.svg"
+rm -f "$APP_DEST/me.tamkungz.Livedesk.desktop"
 
 echo "==> Installing GNOME Shell extension to $EXT_DEST"
 EXT_SOURCE="$(detect_extension_source)"

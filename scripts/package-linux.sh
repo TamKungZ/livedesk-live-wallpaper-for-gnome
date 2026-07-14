@@ -27,7 +27,7 @@ install_tree() {
 
   install -m 755 "$ROOT_DIR/daemon/target/release/livedesk-daemon" "$STAGE/usr/bin/livedesk-daemon"
   install -m 755 "$ROOT_DIR/app/livedesk.js" "$STAGE/usr/bin/livedesk"
-  install -m 644 "$ROOT_DIR/data/me.tamkungz.Livedesk.desktop" "$STAGE/usr/share/applications/me.tamkungz.Livedesk.desktop"
+  install -m 644 "$ROOT_DIR/data/me.tamkungz.LivedeskApp.desktop" "$STAGE/usr/share/applications/me.tamkungz.LivedeskApp.desktop"
   install -m 644 "$ROOT_DIR/data/icons/hicolor/256x256/apps/me.tamkungz.Livedesk.png" "$STAGE/usr/share/icons/hicolor/256x256/apps/me.tamkungz.Livedesk.png"
   install -m 644 "$ROOT_DIR/data/icons/hicolor/scalable/apps/me.tamkungz.Livedesk.svg" "$STAGE/usr/share/icons/hicolor/scalable/apps/me.tamkungz.Livedesk.svg"
   install -m 644 "$ROOT_DIR/livedesk-daemon.service" "$STAGE/usr/lib/systemd/user/livedesk-daemon.service"
@@ -82,6 +82,8 @@ Open the main app with:
 
 MSG
 
+rm -f /usr/share/applications/me.tamkungz.Livedesk.desktop
+
 exit 0
 EOF
   chmod 755 "$deb_root/DEBIAN/postinst"
@@ -131,7 +133,7 @@ cp -a . %{buildroot}/
 %doc /usr/share/doc/livedesk/README.md
 /usr/bin/livedesk
 /usr/bin/livedesk-daemon
-/usr/share/applications/me.tamkungz.Livedesk.desktop
+/usr/share/applications/me.tamkungz.LivedeskApp.desktop
 /usr/share/gnome-shell/extensions/livedesk@me.tamkungz
 /usr/share/icons/hicolor/256x256/apps/me.tamkungz.Livedesk.png
 /usr/share/icons/hicolor/scalable/apps/me.tamkungz.Livedesk.svg

@@ -240,6 +240,7 @@ Release assets.
 - Rust toolchain: `1.77`
 - Rust edition: `2021`
 - D-Bus name: `me.tamkungz.Livedesk`
+- GTK app ID: `me.tamkungz.LivedeskApp`
 - GNOME extension UUID: `livedesk@me.tamkungz`
 - Config directory: `~/.config/livedesk`
 - Runtime frame directory: `$XDG_RUNTIME_DIR/livedesk`

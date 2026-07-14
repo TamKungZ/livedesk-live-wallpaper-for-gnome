@@ -7,7 +7,8 @@ import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import Gtk from 'gi://Gtk?version=4.0';
 
-const APP_ID = 'me.tamkungz.Livedesk';
+const APP_ID = 'me.tamkungz.LivedeskApp';
+const ICON_ID = 'me.tamkungz.Livedesk';
 const DBUS_NAME = 'me.tamkungz.Livedesk';
 const DBUS_PATH = '/me/tamkungz/Livedesk';
 const CONFIG_DIR = GLib.build_filenamev([GLib.get_user_config_dir(), 'livedesk']);
@@ -300,7 +301,7 @@ class LivedeskApp extends Adw.Application {
             title: 'Livedesk',
             default_width: 1280,
             default_height: 720,
-            icon_name: APP_ID,
+            icon_name: ICON_ID,
         });
         this._installCss();
 
@@ -815,7 +816,7 @@ class LivedeskApp extends Adw.Application {
         const about = new Adw.AboutWindow({
             transient_for: this._window,
             application_name: 'Livedesk',
-            application_icon: APP_ID,
+            application_icon: ICON_ID,
             developer_name: 'TamKungZ_',
             version: '0.1.0',
             website: 'https://github.com/TamKungZ/livedesk-live-wallpaper-for-gnome',
