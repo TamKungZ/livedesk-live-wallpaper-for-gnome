@@ -1,0 +1,9 @@
+{
+  "monitors": {
+    "monitor-0": {
+      "uri": "file:///home/YOUR_USER/Videos/wallpaper.webm",
+      "width": 1920,
+      "height": 1080
+    }
+  }
+}

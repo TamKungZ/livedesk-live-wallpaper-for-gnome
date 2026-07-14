@@ -1,0 +1,16 @@
+[Unit]
+Description=Livedesk daemon
+# Wait for the graphical session so GStreamer can find a display/GPU
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/livedesk-daemon
+Restart=on-failure
+RestartSec=2
+# The daemon only decodes video and writes to shared memory / D-Bus;
+# it never touches the network.
+
+[Install]
+WantedBy=graphical-session.target

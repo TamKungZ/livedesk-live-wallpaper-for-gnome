@@ -1,0 +1,6 @@
+/daemon/target/
+/shell-extension/schemas/gschemas.compiled
+/.idea/
+/.vscode/
+*~
+*.swp

@@ -1,0 +1,32 @@
+[package]
+name = "livedesk-daemon"
+version = "0.1.0"
+edition = "2021"
+authors = ["TamKungZ_ <dev@tamkungz.me>"]
+description = "Daemon that decodes a video and exposes frames via shared memory + D-Bus control for Livedesk."
+license = "GPL-3.0-or-later"
+
+[[bin]]
+name = "livedesk-daemon"
+path = "src/main.rs"
+
+[dependencies]
+# Kept deliberately light (plain `dbus`/`dbus-crossroads` instead of
+# zbus+tokio) so this stays compatible with Rust 1.77.
+hashbrown = "=0.14.5"
+indexmap = "=2.2.6"
+gstreamer = "0.22"
+gstreamer-app = "0.22"
+gstreamer-video = "0.22"
+glib = "0.19"
+dbus = "0.9"
+dbus-crossroads = "0.5"
+memmap2 = "0.9"
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+directories = "5"
+
+[profile.release]
+opt-level = 3
+lto = true
