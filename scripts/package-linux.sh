@@ -22,6 +22,8 @@ install_tree() {
     "$STAGE/usr/share/gnome-shell/extensions/livedesk@me.tamkungz" \
     "$STAGE/usr/share/icons/hicolor/256x256/apps" \
     "$STAGE/usr/share/icons/hicolor/scalable/apps" \
+    "$STAGE/usr/share/livedesk/extension-gnome40-44" \
+    "$STAGE/usr/share/livedesk/extension-gnome45-51" \
     "$STAGE/usr/share/livedesk/extensions" \
     "$STAGE/usr/lib/systemd/user"
 
@@ -33,6 +35,11 @@ install_tree() {
   install -m 644 "$ROOT_DIR/livedesk-daemon.service" "$STAGE/usr/lib/systemd/user/livedesk-daemon.service"
   install -m 644 "$ROOT_DIR/README.md" "$STAGE/usr/share/doc/livedesk/README.md"
   install -m 644 "$ROOT_DIR/LICENSE" "$STAGE/usr/share/doc/livedesk/LICENSE"
+
+  cp -r "$ROOT_DIR/shell-extension-legacy/"* "$STAGE/usr/share/livedesk/extension-gnome40-44/"
+  cp -r "$ROOT_DIR/shell-extension/"* "$STAGE/usr/share/livedesk/extension-gnome45-51/"
+  glib-compile-schemas --strict "$STAGE/usr/share/livedesk/extension-gnome40-44/schemas"
+  glib-compile-schemas --strict "$STAGE/usr/share/livedesk/extension-gnome45-51/schemas"
 
   cp -r "$ROOT_DIR/shell-extension/"* "$STAGE/usr/share/gnome-shell/extensions/livedesk@me.tamkungz/"
   glib-compile-schemas --strict "$STAGE/usr/share/gnome-shell/extensions/livedesk@me.tamkungz/schemas"
@@ -64,6 +71,22 @@ EOF
   cat > "$deb_root/DEBIAN/postinst" <<'EOF'
 #!/usr/bin/env sh
 set -e
+
+install_extension_variant() {
+  major="$(gnome-shell --version 2>/dev/null | sed -n 's/.* \([0-9][0-9]*\).*/\1/p')"
+  if [ -n "$major" ] && [ "$major" -ge 40 ] && [ "$major" -le 44 ]; then
+    variant="/usr/share/livedesk/extension-gnome40-44"
+  else
+    variant="/usr/share/livedesk/extension-gnome45-51"
+  fi
+
+  rm -rf /usr/share/gnome-shell/extensions/livedesk@me.tamkungz
+  mkdir -p /usr/share/gnome-shell/extensions/livedesk@me.tamkungz
+  cp -a "$variant"/. /usr/share/gnome-shell/extensions/livedesk@me.tamkungz/
+  glib-compile-schemas /usr/share/gnome-shell/extensions/livedesk@me.tamkungz/schemas
+}
+
+install_extension_variant
 
 cat <<'MSG'
 
@@ -128,6 +151,19 @@ GNOME Shell extension and a native GStreamer daemon.
 mkdir -p %{buildroot}
 cp -a . %{buildroot}/
 
+%post
+MAJOR="\$(gnome-shell --version 2>/dev/null | sed -n 's/.* \([0-9][0-9]*\).*/\1/p')"
+if [ -n "\$MAJOR" ] && [ "\$MAJOR" -ge 40 ] && [ "\$MAJOR" -le 44 ]; then
+  VARIANT="/usr/share/livedesk/extension-gnome40-44"
+else
+  VARIANT="/usr/share/livedesk/extension-gnome45-51"
+fi
+rm -rf /usr/share/gnome-shell/extensions/livedesk@me.tamkungz
+mkdir -p /usr/share/gnome-shell/extensions/livedesk@me.tamkungz
+cp -a "\$VARIANT"/. /usr/share/gnome-shell/extensions/livedesk@me.tamkungz/
+glib-compile-schemas /usr/share/gnome-shell/extensions/livedesk@me.tamkungz/schemas || :
+rm -f /usr/share/applications/me.tamkungz.Livedesk.desktop
+
 %files
 %license /usr/share/doc/livedesk/LICENSE
 %doc /usr/share/doc/livedesk/README.md
@@ -137,7 +173,7 @@ cp -a . %{buildroot}/
 /usr/share/gnome-shell/extensions/livedesk@me.tamkungz
 /usr/share/icons/hicolor/256x256/apps/me.tamkungz.Livedesk.png
 /usr/share/icons/hicolor/scalable/apps/me.tamkungz.Livedesk.svg
-/usr/share/livedesk/extensions
+/usr/share/livedesk
 /usr/lib/systemd/user/livedesk-daemon.service
 
 %changelog

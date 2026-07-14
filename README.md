@@ -210,6 +210,12 @@ The `.deb` and `.rpm` packages include:
 - GNOME Shell extension files
 - extension zips under `/usr/share/livedesk/extensions`
 
+The packages install both extension variants and select the active one
+from `gnome-shell --version` during post-install:
+
+- GNOME 40-44: legacy `imports.*` extension
+- GNOME 45-51: ES module extension
+
 After installing a package, finish setup for the current user:
 
 ```bash
