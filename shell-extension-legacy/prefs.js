@@ -3,7 +3,29 @@ const Gio = imports.gi.Gio;
 const Gtk = imports.gi.Gtk;
 const ExtensionUtils = imports.misc.extensionUtils;
 
+const PROJECT_URL = 'https://github.com/TamKungZ/livedesk-live-wallpaper-for-gnome';
+const RELEASES_URL = PROJECT_URL + '/releases';
+
 function init() {
+}
+
+function openUri(uri) {
+    Gio.AppInfo.launch_default_for_uri(uri, null);
+}
+
+function addInfoRow(group, title, subtitle) {
+    group.add(new Adw.ActionRow({title, subtitle}));
+}
+
+function addLinkRow(group, title, subtitle, label, uri) {
+    const row = new Adw.ActionRow({title, subtitle});
+    const button = new Gtk.Button({
+        label,
+        valign: Gtk.Align.CENTER,
+    });
+    button.connect('clicked', () => openUri(uri));
+    row.add_suffix(button);
+    group.add(row);
 }
 
 function fillPreferencesWindow(window) {
@@ -11,6 +33,42 @@ function fillPreferencesWindow(window) {
 
     const page = new Adw.PreferencesPage();
     window.add(page);
+
+    const installGroup = new Adw.PreferencesGroup({
+        title: 'Complete installation required',
+        description: 'The GNOME Extensions zip installs only the Shell integration. Livedesk also needs the native daemon and GTK app.',
+    });
+    page.add(installGroup);
+
+    addInfoRow(
+        installGroup,
+        'Install the native package',
+        'Use the .deb, .rpm, or source installer from GitHub, then enable and start the daemon.'
+    );
+    addInfoRow(
+        installGroup,
+        'After installing',
+        'Run: systemctl --user enable --now livedesk-daemon'
+    );
+    addInfoRow(
+        installGroup,
+        'Open the app',
+        'Run: livedesk'
+    );
+    addLinkRow(
+        installGroup,
+        'Downloads',
+        'Get the complete Livedesk package.',
+        'Releases',
+        RELEASES_URL
+    );
+    addLinkRow(
+        installGroup,
+        'Source install',
+        'Build and install from the repository with ./install.sh.',
+        'GitHub',
+        PROJECT_URL
+    );
 
     const sourceGroup = new Adw.PreferencesGroup({title: 'Video source'});
     page.add(sourceGroup);
