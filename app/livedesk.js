@@ -2,6 +2,7 @@
 
 import Adw from 'gi://Adw?version=1';
 import Gdk from 'gi://Gdk?version=4.0';
+import GdkPixbuf from 'gi://GdkPixbuf?version=2.0';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
@@ -19,9 +20,9 @@ const TILE_WIDTH = 210;
 const TILE_HEIGHT = 154;
 const THUMB_WIDTH = 190;
 const THUMB_HEIGHT = 107;
+const TILE_LABEL_CHARS = 24;
 const GRID_MARGIN = 18;
 const GRID_GAP = 24;
-const GRID_MAX_COLUMNS = 6;
 const APP_VERSION = '0.1.1';
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.webm', '.mkv', '.mov', '.avi', '.m4v', '.ogv']);
 
@@ -204,6 +205,38 @@ function thumbnailForUri(uri) {
     if (runCommand(['ffmpeg', '-y', '-ss', '00:00:01', '-i', input, '-frames:v', '1', '-vf', 'scale=640:-1', output]))
         return output;
     return null;
+}
+
+function thumbnailPreview(path) {
+    try {
+        const pixbuf = GdkPixbuf.Pixbuf.new_from_file(path);
+        const preview = new Gtk.DrawingArea({
+            width_request: THUMB_WIDTH,
+            height_request: THUMB_HEIGHT,
+            halign: Gtk.Align.CENTER,
+            hexpand: false,
+        });
+        preview.set_size_request(THUMB_WIDTH, THUMB_HEIGHT);
+        preview.set_draw_func((_area, cr, width, height) => {
+            const scale = Math.max(width / pixbuf.get_width(), height / pixbuf.get_height());
+            const scaledWidth = Math.ceil(pixbuf.get_width() * scale);
+            const scaledHeight = Math.ceil(pixbuf.get_height() * scale);
+            const scaled = pixbuf.scale_simple(
+                scaledWidth,
+                scaledHeight,
+                GdkPixbuf.InterpType.BILINEAR
+            );
+            const x = Math.floor((width - scaledWidth) / 2);
+            const y = Math.floor((height - scaledHeight) / 2);
+            cr.rectangle(0, 0, width, height);
+            cr.clip();
+            Gdk.cairo_set_source_pixbuf(cr, scaled, x, y);
+            cr.paint();
+        });
+        return preview;
+    } catch (_) {
+        return null;
+    }
 }
 
 function importVideoToLibrary(uri, libraryDir) {
@@ -399,29 +432,22 @@ class LivedeskApp extends Adw.Application {
         });
         this._galleryScrolled = scrolled;
 
-        this._grid = new Gtk.Grid({
-            halign: Gtk.Align.FILL,
+        this._flowBox = new Gtk.FlowBox({
+            orientation: Gtk.Orientation.HORIZONTAL,
+            halign: Gtk.Align.START,
             valign: Gtk.Align.START,
             hexpand: true,
-            row_spacing: 16,
+            selection_mode: Gtk.SelectionMode.NONE,
+            min_children_per_line: 1,
+            max_children_per_line: 1000,
+            row_spacing: GRID_GAP,
             column_spacing: GRID_GAP,
             margin_top: GRID_MARGIN,
             margin_bottom: GRID_MARGIN,
             margin_start: GRID_MARGIN,
             margin_end: GRID_MARGIN,
         });
-        scrolled.set_child(this._grid);
-        this._galleryLayoutTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
-            if (!this._grid)
-                return GLib.SOURCE_REMOVE;
-            const width = Math.max(
-                this._galleryScrolled?.get_width?.() ?? 0,
-                this._window?.get_width?.() ?? 0
-            );
-            if (width > 0 && width !== this._galleryWidth)
-                this._layoutGalleryGrid();
-            return GLib.SOURCE_CONTINUE;
-        });
+        scrolled.set_child(this._flowBox);
         this._reloadGallery();
         return scrolled;
     }
@@ -631,40 +657,22 @@ class LivedeskApp extends Adw.Application {
             this._selectedRow.subtitle = fileUriToPath(this._config.selected);
         this._updateActionButtons();
 
-        this._galleryTiles = this._config.library.map(uri => this._videoTile(uri));
-
-        if (this._config.library.length === 0)
-            this._galleryTiles = [this._emptyLibraryTile()];
-
-        this._layoutGalleryGrid();
-    }
-
-    _layoutGalleryGrid() {
-        if (!this._grid || !this._galleryTiles)
+        if (!this._flowBox)
             return;
 
-        let child = this._grid.get_first_child();
+        let child = this._flowBox.get_first_child();
         while (child) {
             const next = child.get_next_sibling();
-            this._grid.remove(child);
+            this._flowBox.remove(child);
             child = next;
         }
 
-        const width = Math.max(
-            this._galleryScrolled?.get_width?.() ?? 0,
-            this._window?.get_width?.() ?? 0,
-            1280
-        );
-        this._galleryWidth = width;
-        const available = Math.max(TILE_WIDTH, width - (GRID_MARGIN * 2));
-        const naturalColumns = Math.floor((available + GRID_GAP) / (TILE_WIDTH + GRID_GAP));
-        const columns = Math.max(1, Math.min(GRID_MAX_COLUMNS, naturalColumns));
+        const tiles = this._config.library.length > 0
+            ? this._config.library.map(uri => this._videoTile(uri))
+            : [this._emptyLibraryTile()];
 
-        this._galleryTiles.forEach((tile, index) => {
-            const column = index % columns;
-            const row = Math.floor(index / columns);
-            this._grid.attach(tile, column, row, 1, 1);
-        });
+        for (const tile of tiles)
+            this._flowBox.insert(tile, -1);
     }
 
     _videoTile(uri) {
@@ -687,17 +695,9 @@ class LivedeskApp extends Adw.Application {
         const thumb = thumbnailForUri(uri);
         let preview;
         if (thumb) {
-            preview = new Gtk.Picture({
-                file: Gio.File.new_for_path(thumb),
-                width_request: THUMB_WIDTH,
-                height_request: THUMB_HEIGHT,
-                halign: Gtk.Align.CENTER,
-                hexpand: false,
-                can_shrink: true,
-                content_fit: Gtk.ContentFit.COVER,
-            });
-            preview.set_size_request(THUMB_WIDTH, THUMB_HEIGHT);
-        } else {
+            preview = thumbnailPreview(thumb);
+        }
+        if (!preview) {
             preview = new Gtk.Image({
                 icon_name: 'video-x-generic-symbolic',
                 pixel_size: 36,
@@ -720,6 +720,8 @@ class LivedeskApp extends Adw.Application {
             ellipsize: 3,
             justify: Gtk.Justification.CENTER,
             xalign: 0.5,
+            width_chars: TILE_LABEL_CHARS,
+            max_width_chars: TILE_LABEL_CHARS,
             width_request: THUMB_WIDTH,
         });
         label.tooltip_text = 'Double-click to edit title';
@@ -731,6 +733,8 @@ class LivedeskApp extends Adw.Application {
                 label: 'Selected',
                 justify: Gtk.Justification.CENTER,
                 xalign: 0.5,
+                width_chars: TILE_LABEL_CHARS,
+                max_width_chars: TILE_LABEL_CHARS,
                 width_request: THUMB_WIDTH,
                 css_classes: ['dim-label'],
             });
@@ -869,7 +873,7 @@ class LivedeskApp extends Adw.Application {
 
     _refreshLibrary() {
         this._config.library = scanLibrary(this._config);
-        if (this._grid)
+        if (this._flowBox)
             this._reloadGallery();
         this._saveConfigOnly();
     }
