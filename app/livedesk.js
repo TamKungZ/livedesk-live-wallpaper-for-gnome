@@ -240,6 +240,7 @@ class LivedeskApp extends Adw.Application {
         super({application_id: APP_ID, flags: Gio.ApplicationFlags.FLAGS_NONE});
         this._config = loadConfig();
         this._proxy = null;
+        this._importDialog = null;
     }
 
     vfunc_activate() {
@@ -819,12 +820,18 @@ class LivedeskApp extends Adw.Application {
     }
 
     _chooseVideo() {
+        if (this._importDialog) {
+            this._importDialog.show();
+            return;
+        }
+
         const dialog = new Gtk.FileChooserNative({
             title: 'Select a video',
             action: Gtk.FileChooserAction.OPEN,
             transient_for: this._window,
             modal: true,
         });
+        this._importDialog = dialog;
 
         const filter = new Gtk.FileFilter();
         filter.set_name('Video files');
@@ -842,6 +849,8 @@ class LivedeskApp extends Adw.Application {
                 }
             }
             dlg.destroy();
+            if (this._importDialog === dialog)
+                this._importDialog = null;
         });
         dialog.show();
     }

@@ -5,6 +5,7 @@ const ExtensionUtils = imports.misc.extensionUtils;
 
 const PROJECT_URL = 'https://github.com/TamKungZ/livedesk-live-wallpaper-for-gnome';
 const RELEASES_URL = PROJECT_URL + '/releases';
+let fileDialog = null;
 
 function init() {
 }
@@ -82,12 +83,18 @@ function fillPreferencesWindow(window) {
         valign: Gtk.Align.CENTER,
     });
     chooseButton.connect('clicked', () => {
+        if (fileDialog) {
+            fileDialog.show();
+            return;
+        }
+
         const dialog = new Gtk.FileChooserNative({
             title: 'Select a video',
             action: Gtk.FileChooserAction.OPEN,
             transient_for: window,
             modal: true,
         });
+        fileDialog = dialog;
 
         const filter = new Gtk.FileFilter();
         filter.set_name('Video files');
@@ -101,6 +108,8 @@ function fillPreferencesWindow(window) {
                 fileRow.subtitle = uri;
             }
             dlg.destroy();
+            if (fileDialog === dialog)
+                fileDialog = null;
         });
         dialog.show();
     });

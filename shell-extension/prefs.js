@@ -81,12 +81,18 @@ export default class VideoWallpaperPreferences extends ExtensionPreferences {
             valign: Gtk.Align.CENTER,
         });
         chooseButton.connect('clicked', () => {
+            if (this._fileDialog) {
+                this._fileDialog.show();
+                return;
+            }
+
             const dialog = new Gtk.FileChooserDialog({
                 title: 'Select a video',
                 action: Gtk.FileChooserAction.OPEN,
                 transient_for: window,
                 modal: true,
             });
+            this._fileDialog = dialog;
             dialog.add_button('Cancel', Gtk.ResponseType.CANCEL);
             dialog.add_button('Open', Gtk.ResponseType.ACCEPT);
 
@@ -102,6 +108,12 @@ export default class VideoWallpaperPreferences extends ExtensionPreferences {
                     fileRow.subtitle = uri;
                 }
                 dlg.destroy();
+                if (this._fileDialog === dialog)
+                    this._fileDialog = null;
+            });
+            dialog.connect('destroy', () => {
+                if (this._fileDialog === dialog)
+                    this._fileDialog = null;
             });
             dialog.show();
         });
