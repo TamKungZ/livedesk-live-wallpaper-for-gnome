@@ -332,12 +332,12 @@ SERIES=jammy scripts/package-launchpad-source.sh
 SERIES=noble scripts/package-launchpad-source.sh
 ```
 
-Upload the first series for a given upstream version before building
-later series. By default, `jammy` includes `livedesk_<version>.orig.tar.gz`;
-other series reuse that exact tarball and build diff-only source uploads
-so Launchpad does not reject duplicate orig tarballs with different
-contents. Set `ORIG_SERIES=<series>` if another series should provide
-the first orig tarball.
+The script keeps one common `livedesk_<version>.orig.tar.gz` under
+`dist/launchpad/` and reuses it on repeated runs. By default, `jammy`
+includes that orig tarball in its source upload, while other series
+build diff-only uploads against the same tarball. Set
+`ORIG_SERIES=<series>` if another series should be the full-source
+upload.
 
 Build and upload in one command:
 

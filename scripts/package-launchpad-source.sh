@@ -43,9 +43,7 @@ PUBLISHED_ORIG_TARBALL="${PUBLISHED_ORIG_TARBALL:-$ROOT_DIR/dist/launchpad/$ORIG
 SERIES_ORIG_TARBALL="${SERIES_ORIG_TARBALL:-$ROOT_DIR/dist/launchpad/$ORIG_SERIES/$ORIG_TARBALL_NAME}"
 INCLUDE_ORIG="${INCLUDE_ORIG:-auto}"
 if [ "$INCLUDE_ORIG" = "auto" ]; then
-  if [ -f "$PUBLISHED_ORIG_TARBALL" ]; then
-    INCLUDE_ORIG=0
-  elif [ "$SERIES" = "$ORIG_SERIES" ]; then
+  if [ "$SERIES" = "$ORIG_SERIES" ]; then
     INCLUDE_ORIG=1
   else
     INCLUDE_ORIG=0
@@ -62,7 +60,10 @@ if [ "$INCLUDE_ORIG" = "0" ]; then
     ORIG_TARBALL="$SERIES_ORIG_TARBALL"
   fi
 else
-  ORIG_TARBALL="${ORIG_TARBALL:-$SERIES_ORIG_TARBALL}"
+  ORIG_TARBALL="${ORIG_TARBALL:-$PUBLISHED_ORIG_TARBALL}"
+  if [ ! -f "$ORIG_TARBALL" ]; then
+    ORIG_TARBALL="$SERIES_ORIG_TARBALL"
+  fi
 fi
 WORK_ORIG_TARBALL="$WORK_DIR/$ORIG_TARBALL_NAME"
 SOURCE_FLAGS=(-S -d)
@@ -141,7 +142,13 @@ fi
 rm -rf "$WORK_DIR"
 mkdir -p "$WORK_DIR" "$OUT_DIR"
 
-if [ "$INCLUDE_ORIG" = "1" ]; then
+if [ -f "$ORIG_TARBALL" ]; then
+  cp "$ORIG_TARBALL" "$WORK_ORIG_TARBALL"
+  tar -C "$WORK_DIR" -xzf "$WORK_ORIG_TARBALL"
+  [ -d "$SRC_DIR" ] || fail "$ORIG_TARBALL does not extract to livedesk-$VERSION"
+  rm -rf "$SRC_DIR/debian"
+  cp -a "$ROOT_DIR/debian" "$SRC_DIR/debian"
+elif [ "$INCLUDE_ORIG" = "1" ]; then
   mkdir -p "$SRC_DIR"
   tar -C "$ROOT_DIR" \
     --exclude=.git \
@@ -152,24 +159,21 @@ if [ "$INCLUDE_ORIG" = "1" ]; then
     --exclude='*.rpm' \
     -cf - . | tar -C "$SRC_DIR" -xf -
 else
-  [ -f "$ORIG_TARBALL" ] || fail "missing upstream orig tarball for $SERIES: $ORIG_TARBALL
+  fail "missing upstream orig tarball for $SERIES: $ORIG_TARBALL
 
 Build/upload $ORIG_SERIES first, or set ORIG_TARBALL=/path/to/$ORIG_TARBALL_NAME."
-  cp "$ORIG_TARBALL" "$WORK_ORIG_TARBALL"
-  tar -C "$WORK_DIR" -xzf "$WORK_ORIG_TARBALL"
-  [ -d "$SRC_DIR" ] || fail "$ORIG_TARBALL does not extract to livedesk-$VERSION"
-  rm -rf "$SRC_DIR/debian"
-  cp -a "$ROOT_DIR/debian" "$SRC_DIR/debian"
 fi
 
 sed -i "1s|^livedesk (.*) .*; urgency=medium$|livedesk (${VERSION}-${DEB_REVISION}) ${SERIES}; urgency=medium|" \
   "$SRC_DIR/debian/changelog"
 
 if [ "$INCLUDE_ORIG" = "1" ]; then
-  tar -C "$WORK_DIR" \
-    --exclude="livedesk-$VERSION/debian" \
-    -czf "$WORK_ORIG_TARBALL" \
-    "livedesk-$VERSION"
+  if [ ! -f "$WORK_ORIG_TARBALL" ]; then
+    tar -C "$WORK_DIR" \
+      --exclude="livedesk-$VERSION/debian" \
+      -czf "$WORK_ORIG_TARBALL" \
+      "livedesk-$VERSION"
+  fi
 else
   :
 fi
@@ -185,6 +189,16 @@ printf '  orig sha256: %s\n' "$(sha256sum "$WORK_ORIG_TARBALL" | awk '{print $1}
 
 if [ "$INCLUDE_ORIG" = "1" ]; then
   cp "$WORK_ORIG_TARBALL" "$OUT_DIR"/
+  if [ -f "$PUBLISHED_ORIG_TARBALL" ]; then
+    existing_sha="$(sha256sum "$PUBLISHED_ORIG_TARBALL" | awk '{print $1}')"
+    built_sha="$(sha256sum "$WORK_ORIG_TARBALL" | awk '{print $1}')"
+    [ "$existing_sha" = "$built_sha" ] || fail "refusing to overwrite $PUBLISHED_ORIG_TARBALL with a different orig tarball
+
+existing sha256: $existing_sha
+built sha256:    $built_sha"
+  else
+    cp "$WORK_ORIG_TARBALL" "$PUBLISHED_ORIG_TARBALL"
+  fi
 else
   rm -f "$OUT_DIR/$ORIG_TARBALL_NAME"
 fi
