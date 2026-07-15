@@ -323,9 +323,21 @@ SERIES=jammy scripts/package-launchpad-source.sh
 SERIES=noble scripts/package-launchpad-source.sh
 ```
 
+Build and upload in one command:
+
+```bash
+UPLOAD=1 PPA=ppa:tamkungz/stable SERIES=jammy scripts/package-launchpad-source.sh
+UPLOAD=1 PPA=ppa:tamkungz/stable SERIES=noble scripts/package-launchpad-source.sh
+```
+
 The upload files are signed by default because Launchpad requires signed
 `.changes` files. For local unsigned testing only, run with
 `UNSIGNED=1`.
+
+The script reads the upstream version from `debian/changelog` by default.
+For a normal release, update `debian/changelog`, make sure
+`daemon/vendor/` exists, then run the upload command for each target
+series.
 
 Upload the generated source changes files to a PPA:
 

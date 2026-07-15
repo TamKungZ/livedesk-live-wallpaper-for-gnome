@@ -11,6 +11,8 @@
 - Added Launchpad PPA source packaging with vendored Rust crates for offline builders.
 - Added per-series Launchpad source generation for Jammy and Noble uploads.
 - Signed Launchpad source uploads by default, with `UNSIGNED=1` available for local-only tests.
+- Included source `.buildinfo` files in Launchpad output directories so `dput` can upload every file referenced by `.changes`.
+- Added optional automatic Launchpad upload with `UPLOAD=1 PPA=...`, including checks for required files and signatures.
 - Enabled the user daemon globally from Debian/RPM package post-install scripts where supported, so Livedesk starts automatically on future logins.
 - Updated install guidance so opening `livedesk` is the primary post-install step, with `livedesk-setup` kept as a manual fallback.
 - Bumped package, daemon, app, and extension metadata versions for the 0.1.2 release.
