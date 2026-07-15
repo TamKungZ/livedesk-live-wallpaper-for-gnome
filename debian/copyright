@@ -1,0 +1,23 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: livedesk
+Source: https://github.com/TamKungZ/livedesk-live-wallpaper-for-gnome
+
+Files: *
+Copyright: 2026 TamKungZ_
+License: GPL-3.0-or-later
+
+Files: daemon/vendor/*
+Copyright: respective upstream crate authors
+License: mixed
+ The vendored Rust crates keep their upstream license files inside each
+ crate directory. They are included so Launchpad can build the package
+ without network access.
+
+License: GPL-3.0-or-later
+ This program is free software: you can redistribute it and/or modify it
+ under the terms of the GNU General Public License as published by the
+ Free Software Foundation, either version 3 of the License, or (at your
+ option) any later version.
+ .
+ On Debian systems, the full text of the GNU General Public License
+ version 3 can be found in /usr/share/common-licenses/GPL-3.

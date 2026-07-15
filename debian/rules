@@ -1,0 +1,38 @@
+#!/usr/bin/make -f
+
+export CARGO_HOME := $(CURDIR)/debian/cargo-home
+REQUIRED_RUST := 1.77
+RUSTC_BIN := $(shell command -v rustc-1.77 || command -v rustc)
+CARGO_BIN := $(shell command -v cargo-1.77 || command -v cargo)
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	mkdir -p $(CARGO_HOME)
+	sed 's|@SOURCE_DIR@|$(CURDIR)|g' debian/cargo-config > $(CARGO_HOME)/config.toml
+	$(RUSTC_BIN) --version | awk '{ split($$2, v, "."); if (v[1] < 1 || (v[1] == 1 && v[2] < 77)) exit 1 }' || { echo "rustc $(REQUIRED_RUST) or newer is required"; exit 1; }
+	cd daemon && RUSTC="$(RUSTC_BIN)" "$(CARGO_BIN)" build --release --locked --offline
+
+override_dh_auto_install:
+	dh_auto_install
+	install -D -m 755 daemon/target/release/livedesk-daemon debian/livedesk/usr/bin/livedesk-daemon
+	install -D -m 755 app/livedesk.js debian/livedesk/usr/bin/livedesk
+	install -D -m 755 scripts/livedesk-setup.sh debian/livedesk/usr/bin/livedesk-setup
+	install -D -m 755 scripts/livedesk-uninstall.sh debian/livedesk/usr/bin/livedesk-uninstall
+	install -D -m 644 data/me.tamkungz.LivedeskApp.desktop debian/livedesk/usr/share/applications/me.tamkungz.LivedeskApp.desktop
+	install -D -m 644 data/icons/hicolor/256x256/apps/me.tamkungz.Livedesk.png debian/livedesk/usr/share/icons/hicolor/256x256/apps/me.tamkungz.Livedesk.png
+	install -D -m 644 data/icons/hicolor/scalable/apps/me.tamkungz.Livedesk.svg debian/livedesk/usr/share/icons/hicolor/scalable/apps/me.tamkungz.Livedesk.svg
+	install -D -m 644 livedesk-daemon.service debian/livedesk/usr/lib/systemd/user/livedesk-daemon.service
+	install -d debian/livedesk/usr/share/livedesk/extension-gnome40-44
+	install -d debian/livedesk/usr/share/livedesk/extension-gnome45-51
+	install -d debian/livedesk/usr/share/gnome-shell/extensions/livedesk@me.tamkungz
+	cp -a shell-extension-legacy/. debian/livedesk/usr/share/livedesk/extension-gnome40-44/
+	cp -a shell-extension/. debian/livedesk/usr/share/livedesk/extension-gnome45-51/
+	cp -a shell-extension/. debian/livedesk/usr/share/gnome-shell/extensions/livedesk@me.tamkungz/
+	glib-compile-schemas --strict debian/livedesk/usr/share/livedesk/extension-gnome40-44/schemas
+	glib-compile-schemas --strict debian/livedesk/usr/share/livedesk/extension-gnome45-51/schemas
+	glib-compile-schemas --strict debian/livedesk/usr/share/gnome-shell/extensions/livedesk@me.tamkungz/schemas
+	install -D -m 644 README.md debian/livedesk/usr/share/doc/livedesk/README.md
+	install -D -m 644 SETUP.md debian/livedesk/usr/share/doc/livedesk/SETUP.md
+	install -D -m 644 CHANGE.md debian/livedesk/usr/share/doc/livedesk/CHANGE.md

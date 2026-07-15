@@ -284,6 +284,52 @@ livedesk-uninstall --purge
 The video library at `~/Videos/Livedesk` is kept unless
 `--purge-library` is passed.
 
+## Launchpad PPA Source Package
+
+Launchpad builds run without network access during package builds, so
+the Rust dependencies are vendored under `daemon/vendor/`. The vendor
+directory is ignored by git; create it locally before building the source
+upload:
+
+```bash
+cd daemon
+cargo vendor --locked vendor
+cd ..
+```
+
+Normal local Cargo builds are not forced to use the vendor directory.
+The Debian packaging writes a temporary Cargo config only while building
+the Launchpad package.
+Launchpad builds use Ubuntu's `rustc-1.77` and `cargo-1.77` packages
+when available, falling back to unversioned `rustc`/`cargo` only if they
+are new enough.
+
+Build the source upload locally:
+
+```bash
+scripts/package-launchpad-source.sh
+```
+
+Outputs are written under:
+
+```text
+dist/launchpad/<series>/
+```
+
+Build separate source uploads for Jammy and Noble:
+
+```bash
+SERIES=jammy scripts/package-launchpad-source.sh
+SERIES=noble scripts/package-launchpad-source.sh
+```
+
+Upload the generated source changes files to a PPA:
+
+```bash
+dput ppa:<launchpad-user>/<ppa-name> dist/launchpad/jammy/livedesk_0.1.2-1~jammy1_source.changes
+dput ppa:<launchpad-user>/<ppa-name> dist/launchpad/noble/livedesk_0.1.2-1~noble1_source.changes
+```
+
 ## GitHub Releases
 
 The repository includes a GitHub Actions workflow at:

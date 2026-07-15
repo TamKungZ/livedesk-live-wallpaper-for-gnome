@@ -1,0 +1,6 @@
+livedesk (0.1.2-1~ppa1) jammy; urgency=medium
+
+  * Launchpad PPA source package with vendored Rust crates.
+  * Build the native daemon offline from daemon/vendor.
+
+ -- TamKungZ_ <dev@tamkungz.me>  Wed, 15 Jul 2026 09:55:00 +0700
