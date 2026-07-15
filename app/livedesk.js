@@ -23,7 +23,9 @@ const THUMB_HEIGHT = 107;
 const TILE_LABEL_CHARS = 24;
 const GRID_MARGIN = 18;
 const GRID_GAP = 24;
-const APP_VERSION = '0.1.1';
+const APP_VERSION = '0.1.2';
+const EXT_UUID = 'livedesk@me.tamkungz';
+const SETUP_NOTICE_PATH = GLib.build_filenamev([CONFIG_DIR, `setup-notice-${APP_VERSION}`]);
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.webm', '.mkv', '.mov', '.avi', '.m4v', '.ogv']);
 
 const DBUS_IFACE_XML = `
@@ -191,6 +193,10 @@ function commandSucceeds(args) {
     return runCommand(args);
 }
 
+function programExists(name) {
+    return Boolean(GLib.find_program_in_path(name));
+}
+
 function thumbnailForUri(uri) {
     const input = fileUriToPath(uri);
     const output = thumbnailPathForUri(uri);
@@ -286,6 +292,10 @@ class LivedeskApp extends Adw.Application {
         this._buildActions();
         this._buildWindow();
         this._window.present();
+        GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+            this._bootstrapUserSession();
+            return GLib.SOURCE_REMOVE;
+        });
     }
 
     _buildActions() {
@@ -611,6 +621,38 @@ class LivedeskApp extends Adw.Application {
         row.activatable_widget = widget;
         group.add(row);
         return widget;
+    }
+
+    _bootstrapUserSession() {
+        let needsSessionRestart = false;
+
+        if (programExists('systemctl')) {
+            runCommand(['systemctl', '--user', 'daemon-reload']);
+            runCommand(['systemctl', '--user', 'enable', '--now', 'livedesk-daemon.service']);
+        }
+
+        if (programExists('gnome-extensions')) {
+            if (runCommand(['gnome-extensions', 'info', EXT_UUID]))
+                runCommand(['gnome-extensions', 'enable', EXT_UUID]);
+            else
+                needsSessionRestart = true;
+        }
+
+        this._connectProxy();
+        this._refreshServiceSwitches();
+
+        if (needsSessionRestart && !GLib.file_test(SETUP_NOTICE_PATH, GLib.FileTest.EXISTS)) {
+            GLib.mkdir_with_parents(CONFIG_DIR, 0o755);
+            GLib.file_set_contents(SETUP_NOTICE_PATH, `${new Date().toISOString()}\n`);
+            this._showError('Livedesk was installed and the background service was enabled. Log out and back in once so GNOME Shell can discover the extension, then open Livedesk again.');
+        }
+    }
+
+    _refreshServiceSwitches() {
+        if (this._serviceSwitch)
+            this._serviceSwitch.active = commandSucceeds(['systemctl', '--user', 'is-active', '--quiet', 'livedesk-daemon.service']);
+        if (this._autostartSwitch)
+            this._autostartSwitch.active = commandSucceeds(['systemctl', '--user', 'is-enabled', '--quiet', 'livedesk-daemon.service']);
     }
 
     _detectMonitors() {

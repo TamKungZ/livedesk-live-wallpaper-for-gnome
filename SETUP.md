@@ -13,17 +13,18 @@ echo "deb [arch=amd64 signed-by=/usr/share/keyrings/tamkungz-archive-keyring.gpg
   | sudo tee /etc/apt/sources.list.d/tamkungz.list
 sudo apt update
 sudo apt install livedesk
-livedesk-setup
+livedesk
 ```
 
 Or install a local Debian package from `dist/` or from a GitHub release:
 
 ```bash
-sudo dpkg -i dist/livedesk_0.1.1_amd64.deb
-livedesk-setup
+sudo dpkg -i dist/livedesk_0.1.2_amd64.deb
+livedesk
 ```
 
-Then log out and back in if GNOME Shell does not see the extension yet.
+The app finishes user-session setup automatically. Log out and back in if
+GNOME Shell does not see the extension yet.
 
 Open the app:
 
@@ -55,14 +56,14 @@ repo_gpgcheck=1
 gpgkey=https://packages.tamkungz.me/gpg.key
 EOF
 sudo dnf install livedesk
-livedesk-setup
+livedesk
 ```
 
 Or install a local RPM:
 
 ```bash
-sudo rpm -Uvh dist/livedesk-0.1.1-1.x86_64.rpm
-livedesk-setup
+sudo rpm -Uvh dist/livedesk-0.1.2-1.x86_64.rpm
+livedesk
 ```
 
 ## Source Install
@@ -81,7 +82,7 @@ Then:
 
 ```bash
 ./install.sh
-livedesk-setup
+livedesk
 ```
 
 ## Extension Zip Only

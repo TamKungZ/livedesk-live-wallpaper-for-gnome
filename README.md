@@ -100,7 +100,7 @@ echo "deb [arch=amd64 signed-by=/usr/share/keyrings/tamkungz-archive-keyring.gpg
   | sudo tee /etc/apt/sources.list.d/tamkungz.list
 sudo apt update
 sudo apt install livedesk
-livedesk-setup
+livedesk
 ```
 
 Fedora/RHEL-like distributions:
@@ -117,14 +117,14 @@ repo_gpgcheck=1
 gpgkey=https://packages.tamkungz.me/gpg.key
 EOF
 sudo dnf install livedesk
-livedesk-setup
+livedesk
 ```
 
 ## Install From Source
 
 ```bash
 ./install.sh
-livedesk-setup
+livedesk
 ```
 
 Then open the app:
@@ -257,16 +257,17 @@ from `gnome-shell --version` during post-install:
 - GNOME 40-44: legacy `imports.*` extension
 - GNOME 45-51: ES module extension
 
-After installing a package, finish setup for the current user:
+After installing a package, open the app to finish setup for the current
+user automatically:
 
 ```bash
-livedesk-setup
 livedesk
 ```
 
 If `gnome-extensions` says the extension does not exist, log out and
 back in first so GNOME Shell can discover the newly installed system
-extension, then run the enable command again.
+extension, then open `livedesk` again. `livedesk-setup` remains
+available as a manual setup helper.
 
 Uninstall:
 

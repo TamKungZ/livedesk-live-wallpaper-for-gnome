@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.1.2
+
+- Added first-run app bootstrap that reloads user systemd units, enables and starts the Livedesk daemon, and enables the GNOME Shell extension when the current session can already see it.
+- Enabled the user daemon globally from Debian/RPM package post-install scripts where supported, so Livedesk starts automatically on future logins.
+- Updated install guidance so opening `livedesk` is the primary post-install step, with `livedesk-setup` kept as a manual fallback.
+- Bumped package, daemon, app, and extension metadata versions for the 0.1.2 release.
+
 ## 0.1.1
 
 - Added GTK4/Libadwaita app as the primary Livedesk UI.

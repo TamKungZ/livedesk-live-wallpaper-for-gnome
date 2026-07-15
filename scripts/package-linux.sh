@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="${VERSION:-0.1.1}"
+VERSION="${VERSION:-0.1.2}"
 ARCH_DEB="${ARCH_DEB:-amd64}"
 ARCH_RPM="${ARCH_RPM:-x86_64}"
 DIST_DIR="$ROOT_DIR/dist"
@@ -92,18 +92,22 @@ install_extension_variant() {
 
 install_extension_variant
 
+systemctl --global enable livedesk-daemon.service >/dev/null 2>&1 || true
+
 cat <<'MSG'
 
 Livedesk was installed.
 
-Complete setup for your user session:
+The background service was enabled for future user logins where supported.
+
+Open the main app to finish user-session setup automatically:
+  livedesk
+
+You can still run the setup helper manually:
   livedesk-setup
 
 If GNOME says "Extension does not exist", log out and back in first so
-GNOME Shell can discover the newly installed system extension, then run:
-  gnome-extensions enable livedesk@me.tamkungz
-
-Open the main app with:
+GNOME Shell can discover the newly installed system extension, then open:
   livedesk
 
 MSG
@@ -165,6 +169,7 @@ rm -rf /usr/share/gnome-shell/extensions/livedesk@me.tamkungz
 mkdir -p /usr/share/gnome-shell/extensions/livedesk@me.tamkungz
 cp -a "\$VARIANT"/. /usr/share/gnome-shell/extensions/livedesk@me.tamkungz/
 glib-compile-schemas /usr/share/gnome-shell/extensions/livedesk@me.tamkungz/schemas || :
+systemctl --global enable livedesk-daemon.service >/dev/null 2>&1 || :
 rm -f /usr/share/applications/me.tamkungz.Livedesk.desktop
 
 %files

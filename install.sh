@@ -6,9 +6,9 @@
 #   4. compiles its GSettings schema
 #   5. installs (but does not enable) a systemd --user unit for the daemon
 #
-# It does NOT enable the shell extension automatically -- do that with
-# `gnome-extensions enable livedesk@me.tamkungz` and then log out/in
-# (Wayland requires a full session restart to load a new extension).
+# Opening `livedesk` after install will try to start the user service and
+# enable the extension automatically. Wayland may still require a full
+# session restart before GNOME Shell can discover a newly-installed extension.
 
 set -euo pipefail
 
@@ -90,19 +90,17 @@ fi
 
 cat <<'EOF'
 
-Done. Remaining manual steps:
+Done. Remaining steps:
 
-  1. Start the daemon and enable the extension:
-       livedesk-setup
+  1. Open Livedesk:
+       livedesk
 
   2. If GNOME does not see the extension yet, log out and back in.
      On Wayland you'll usually need a full session restart for a newly-installed
      extension to be picked up; on X11, Alt+F2 -> 'r' -> Enter reloads
      GNOME Shell instead.
 
-  3. Open the Livedesk app:
-       livedesk
-     Pick your video and apply it to the daemon.
+  3. Pick your video and apply it to the daemon.
 
 The extension preferences remain available through GNOME's Extensions app,
 but the standalone Livedesk app is the primary UI.
