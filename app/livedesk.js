@@ -22,6 +22,7 @@ const THUMB_HEIGHT = 107;
 const GRID_MARGIN = 18;
 const GRID_GAP = 24;
 const GRID_MAX_COLUMNS = 6;
+const APP_VERSION = '0.1.1';
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.webm', '.mkv', '.mov', '.avi', '.m4v', '.ogv']);
 
 const DBUS_IFACE_XML = `
@@ -185,6 +186,10 @@ function runCommand(args) {
     }
 }
 
+function commandSucceeds(args) {
+    return runCommand(args);
+}
+
 function thumbnailForUri(uri) {
     const input = fileUriToPath(uri);
     const output = thumbnailPathForUri(uri);
@@ -336,6 +341,7 @@ class LivedeskApp extends Adw.Application {
             margin_start: 14,
             margin_end: 14,
         });
+        this._footer = footer;
         this._setDefaultButton = new Gtk.Button({
             label: 'Set Default',
             sensitive: Boolean(this._config.selected),
@@ -394,11 +400,13 @@ class LivedeskApp extends Adw.Application {
     _showGallery() {
         this._stack.visible_child_name = 'gallery';
         this._backButton.visible = false;
+        this._footer.visible = true;
     }
 
     _showSettings() {
         this._stack.visible_child_name = 'settings';
         this._backButton.visible = true;
+        this._footer.visible = false;
     }
 
     _galleryPage() {
@@ -438,13 +446,94 @@ class LivedeskApp extends Adw.Application {
     }
 
     _settingsPage() {
-        const page = new Adw.PreferencesPage({
-            title: 'Settings',
-            icon_name: 'emblem-system-symbolic',
+        const box = new Gtk.Box({
+            orientation: Gtk.Orientation.HORIZONTAL,
+            hexpand: true,
+            vexpand: true,
         });
 
+        const sidebarShell = new Gtk.Box({
+            orientation: Gtk.Orientation.VERTICAL,
+            width_request: 250,
+            spacing: 10,
+            margin_top: 10,
+            margin_bottom: 10,
+            margin_start: 10,
+            margin_end: 10,
+        });
+        sidebarShell.append(new Gtk.SearchEntry({
+            placeholder_text: 'Search...',
+            sensitive: false,
+        }));
+
+        const settingsStack = new Gtk.Stack({
+            transition_type: Gtk.StackTransitionType.SLIDE_LEFT_RIGHT,
+            hexpand: true,
+            vexpand: true,
+        });
+        const sidebar = new Gtk.StackSidebar({stack: settingsStack});
+        sidebar.vexpand = true;
+        sidebarShell.append(sidebar);
+
+        box.append(sidebarShell);
+        box.append(new Gtk.Separator({orientation: Gtk.Orientation.VERTICAL}));
+        box.append(settingsStack);
+
+        settingsStack.add_titled(
+            this._backgroundServicePage(),
+            'background-service',
+            'Background Service'
+        );
+        settingsStack.add_titled(this._librarySettingsPage(), 'library', 'Library');
+        settingsStack.add_titled(this._wallpaperSettingsPage(), 'wallpaper', 'Wallpaper');
+        settingsStack.add_titled(this._audioSettingsPage(), 'audio', 'Audio');
+        settingsStack.visible_child_name = 'background-service';
+
+        return box;
+    }
+
+    _settingsContentPage(title) {
+        const page = new Adw.PreferencesPage({
+            title,
+            hexpand: true,
+            vexpand: true,
+            margin_top: 10,
+            margin_bottom: 10,
+            margin_start: 18,
+            margin_end: 18,
+        });
+        return page;
+    }
+
+    _backgroundServicePage() {
+        const page = this._settingsContentPage('Background Service');
+        const group = new Adw.PreferencesGroup({title: 'Background Service'});
+        page.add(group);
+
+        this._serviceSwitch = this._settingsSwitchRow(
+            group,
+            'Enable service mode',
+            'Livedesk keeps the video wallpaper daemon available in the background.',
+            commandSucceeds(['systemctl', '--user', 'is-active', '--quiet', 'livedesk-daemon.service']),
+            active => this._setServiceActive(active)
+        );
+
+        this._autostartSwitch = this._settingsSwitchRow(
+            group,
+            'Autostart on login',
+            'Livedesk is launched at user session startup.',
+            commandSucceeds(['systemctl', '--user', 'is-enabled', '--quiet', 'livedesk-daemon.service']),
+            active => this._setAutostartActive(active)
+        );
+
+        return page;
+    }
+
+    _librarySettingsPage() {
+        const page = this._settingsContentPage('Library');
         const libraryGroup = new Adw.PreferencesGroup({title: 'Library'});
         page.add(libraryGroup);
+
         libraryGroup.add(new Adw.ActionRow({
             title: 'Folder',
             subtitle: this._config.library_dir,
@@ -455,6 +544,11 @@ class LivedeskApp extends Adw.Application {
         });
         libraryGroup.add(this._selectedRow);
 
+        return page;
+    }
+
+    _wallpaperSettingsPage() {
+        const page = this._settingsContentPage('Wallpaper');
         const wallpaperGroup = new Adw.PreferencesGroup({title: 'Wallpaper'});
         page.add(wallpaperGroup);
 
@@ -479,6 +573,14 @@ class LivedeskApp extends Adw.Application {
         wallpaperGroup.add(this._resolutionRow);
         this._updateMonitorRows();
 
+        return page;
+    }
+
+    _audioSettingsPage() {
+        const page = this._settingsContentPage('Audio');
+        const audioGroup = new Adw.PreferencesGroup({title: 'Audio'});
+        page.add(audioGroup);
+
         this._mutedSwitch = new Gtk.Switch({
             active: this._config.muted ?? true,
             valign: Gtk.Align.CENTER,
@@ -486,9 +588,22 @@ class LivedeskApp extends Adw.Application {
         const mutedRow = new Adw.ActionRow({title: 'Mute audio'});
         mutedRow.add_suffix(this._mutedSwitch);
         mutedRow.activatable_widget = this._mutedSwitch;
-        wallpaperGroup.add(mutedRow);
+        audioGroup.add(mutedRow);
 
         return page;
+    }
+
+    _settingsSwitchRow(group, title, subtitle, active, onChanged) {
+        const row = new Adw.ActionRow({title, subtitle});
+        const widget = new Gtk.Switch({
+            active,
+            valign: Gtk.Align.CENTER,
+        });
+        widget.connect('notify::active', () => onChanged(widget.active));
+        row.add_suffix(widget);
+        row.activatable_widget = widget;
+        group.add(row);
+        return widget;
     }
 
     _detectMonitors() {
@@ -791,10 +906,40 @@ class LivedeskApp extends Adw.Application {
 
     _startDaemon() {
         try {
-            GLib.spawn_command_line_async('systemctl --user start livedesk-daemon.service');
+            this._setServiceActive(true);
             this._connectProxy();
         } catch (e) {
             this._showError(`Failed to start daemon: ${e.message}`);
+        }
+    }
+
+    _setServiceActive(active) {
+        try {
+            GLib.spawn_async(
+                null,
+                ['systemctl', '--user', active ? 'start' : 'stop', 'livedesk-daemon.service'],
+                null,
+                GLib.SpawnFlags.SEARCH_PATH,
+                null
+            );
+            if (active)
+                this._connectProxy();
+        } catch (e) {
+            this._showError(`Failed to ${active ? 'start' : 'stop'} service: ${e.message}`);
+        }
+    }
+
+    _setAutostartActive(active) {
+        try {
+            GLib.spawn_async(
+                null,
+                ['systemctl', '--user', active ? 'enable' : 'disable', 'livedesk-daemon.service'],
+                null,
+                GLib.SpawnFlags.SEARCH_PATH,
+                null
+            );
+        } catch (e) {
+            this._showError(`Failed to update autostart: ${e.message}`);
         }
     }
 
@@ -842,7 +987,7 @@ class LivedeskApp extends Adw.Application {
             application_name: 'Livedesk',
             application_icon: ICON_ID,
             developer_name: 'TamKungZ_',
-            version: '0.1.0',
+            version: APP_VERSION,
             website: 'https://github.com/TamKungZ/livedesk-live-wallpaper-for-gnome',
             issue_url: 'https://github.com/TamKungZ/livedesk-live-wallpaper-for-gnome/issues',
             license_type: Gtk.License.GPL_3_0,
