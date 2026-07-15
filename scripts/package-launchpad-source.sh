@@ -2,19 +2,6 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CHANGELOG_VERSION="$(dpkg-parsechangelog -l "$ROOT_DIR/debian/changelog" -S Version)"
-UPSTREAM_VERSION="${CHANGELOG_VERSION%%-*}"
-VERSION="${VERSION:-$UPSTREAM_VERSION}"
-SERIES="${SERIES:-jammy}"
-DEB_REVISION="${DEB_REVISION:-1~${SERIES}1}"
-WORK_DIR="$ROOT_DIR/target/launchpad-source"
-SRC_DIR="$WORK_DIR/livedesk-$VERSION"
-OUT_DIR="$ROOT_DIR/dist/launchpad/$SERIES"
-CHANGES_FILE="$OUT_DIR/livedesk_${VERSION}-${DEB_REVISION}_source.changes"
-SIGN_FLAGS=()
-if [ "${UNSIGNED:-0}" = "1" ]; then
-  SIGN_FLAGS=(-us -uc)
-fi
 
 fail() {
   printf 'error: %s\n' "$*" >&2
@@ -24,6 +11,40 @@ fail() {
 need_cmd() {
   command -v "$1" >/dev/null 2>&1 || fail "missing required command '$1'"
 }
+
+need_cmd dpkg-parsechangelog
+need_cmd awk
+
+CHANGELOG="$ROOT_DIR/debian/changelog"
+CHANGELOG_SERIES="$(dpkg-parsechangelog -l "$CHANGELOG" -S Distribution)"
+SERIES="${SERIES:-$CHANGELOG_SERIES}"
+CHANGELOG_VERSION="$(
+  awk -v series="$SERIES" '
+    /^livedesk \(/ {
+      version = $2
+      distribution = $3
+      gsub(/^\(|\)$/, "", version)
+      sub(/;$/, "", distribution)
+      if (distribution == series) {
+        print version
+        exit
+      }
+    }
+  ' "$CHANGELOG"
+)"
+[ -n "$CHANGELOG_VERSION" ] || fail "debian/changelog has no livedesk entry for series '$SERIES'"
+UPSTREAM_VERSION="${CHANGELOG_VERSION%%-*}"
+CHANGELOG_DEB_REVISION="${CHANGELOG_VERSION#*-}"
+VERSION="${VERSION:-$UPSTREAM_VERSION}"
+DEB_REVISION="${DEB_REVISION:-$CHANGELOG_DEB_REVISION}"
+WORK_DIR="$ROOT_DIR/target/launchpad-source"
+SRC_DIR="$WORK_DIR/livedesk-$VERSION"
+OUT_DIR="$ROOT_DIR/dist/launchpad/$SERIES"
+CHANGES_FILE="$OUT_DIR/livedesk_${VERSION}-${DEB_REVISION}_source.changes"
+SIGN_FLAGS=()
+if [ "${UNSIGNED:-0}" = "1" ]; then
+  SIGN_FLAGS=(-us -uc)
+fi
 
 verify_upload_files() {
   local stem="$OUT_DIR/livedesk_${VERSION}-${DEB_REVISION}"
@@ -60,7 +81,6 @@ upload_package() {
   dput "$target" "$CHANGES_FILE" || fail "dput upload failed for $CHANGES_FILE"
 }
 
-need_cmd dpkg-parsechangelog
 need_cmd debuild
 need_cmd tar
 need_cmd sed

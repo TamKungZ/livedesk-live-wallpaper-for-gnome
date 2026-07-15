@@ -68,6 +68,15 @@ lookup.
 Debian/Ubuntu:
 
 ```bash
+sudo add-apt-repository ppa:tamkungz/stable
+sudo apt update
+sudo apt install livedesk
+livedesk
+```
+
+Or add the APT repository manually:
+
+```bash
 curl -fsSL https://packages.tamkungz.me/gpg.key \
   | sudo gpg --dearmor -o /usr/share/keyrings/tamkungz-archive-keyring.gpg
 echo "deb [arch=amd64 signed-by=/usr/share/keyrings/tamkungz-archive-keyring.gpg] https://packages.tamkungz.me/apt stable main" \
@@ -334,10 +343,11 @@ The upload files are signed by default because Launchpad requires signed
 `.changes` files. For local unsigned testing only, run with
 `UNSIGNED=1`.
 
-The script reads the upstream version from `debian/changelog` by default.
-For a normal release, update `debian/changelog`, make sure
-`daemon/vendor/` exists, then run the upload command for each target
-series.
+The script reads the version and Debian revision for the selected
+series from `debian/changelog`. If `SERIES` is not set, it uses the
+series from the first changelog entry. For a normal release, update
+`debian/changelog`, make sure `daemon/vendor/` exists, then run the
+upload command for each target series.
 
 Upload the generated source changes files to a PPA:
 

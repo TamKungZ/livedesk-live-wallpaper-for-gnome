@@ -1,3 +1,10 @@
+livedesk (0.1.2-1~noble1) noble; urgency=medium
+
+  * Launchpad PPA source package with vendored Rust crates.
+  * Build the native daemon offline from daemon/vendor.
+
+ -- TamKungZ_ <dev@tamkungz.me>  Wed, 15 Jul 2026 10:40:00 +0700
+
 livedesk (0.1.2-1~jammy1) jammy; urgency=medium
 
   * Launchpad PPA source package with vendored Rust crates.
