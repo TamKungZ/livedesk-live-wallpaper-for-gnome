@@ -8,6 +8,7 @@
 - Added folder-based video gallery using `~/Videos/Livedesk`.
 - Added a sidebar-based settings view with background service, library, wallpaper, and audio sections.
 - Added app controls for starting/stopping the daemon and enabling/disabling autostart from settings.
+- Replaced the GTK menu button with direct header-bar actions to avoid GTK CSS corner critical warnings.
 - Bumped package, daemon, app, and extension metadata versions for the 0.1.1 release.
 - Added static thumbnail generation with `totem-video-thumbnailer` or `ffmpeg`.
 - Added GNOME Shell extension variants for GNOME 40-44 and 45-51.

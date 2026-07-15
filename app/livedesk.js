@@ -318,7 +318,8 @@ class LivedeskApp extends Adw.Application {
         this._backButton.visible = false;
         header.pack_start(this._backButton);
         header.pack_start(this._iconButton('folder-open-symbolic', 'Open library folder', () => this._openLibrary()));
-        header.pack_end(this._menuButton());
+        header.pack_start(this._iconButton('list-add-symbolic', 'Import video', () => this._chooseVideo()));
+        header.pack_end(this._iconButton('help-about-symbolic', 'About Livedesk', () => this._showAbout()));
         header.pack_end(this._iconButton('emblem-system-symbolic', 'Settings', () => this._toggleSettings()));
         header.pack_end(this._iconButton('view-refresh-symbolic', 'Refresh library', () => this._refreshLibrary()));
         header.pack_end(this._iconButton('media-playback-stop-symbolic', 'Stop', () => this._callDaemon('StopRemote')));
@@ -366,27 +367,6 @@ class LivedeskApp extends Adw.Application {
             tooltip_text: tooltip,
         });
         button.connect('clicked', callback);
-        return button;
-    }
-
-    _menuButton() {
-        const menu = new Gio.Menu();
-        menu.append('Open Library Folder', 'app.open-library');
-        menu.append('Import Video', 'app.add-video');
-        menu.append('Refresh Library', 'app.refresh-library');
-        menu.append('Save and Apply', 'app.apply');
-        menu.append('Start Daemon', 'app.start-daemon');
-        menu.append('Play', 'app.play');
-        menu.append('Pause', 'app.pause');
-        menu.append('Stop', 'app.stop');
-        menu.append('Settings', 'app.settings');
-        menu.append('About Livedesk', 'app.about');
-
-        const button = new Gtk.MenuButton({
-            icon_name: 'open-menu-symbolic',
-            tooltip_text: 'Menu',
-        });
-        button.set_menu_model(menu);
         return button;
     }
 
