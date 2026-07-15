@@ -22,6 +22,12 @@
       <description>Wallpapers are silent by default.</description>
     </key>
 
+    <key name="wallpaper-enabled" type="b">
+      <default>false</default>
+      <summary>Show live wallpaper</summary>
+      <description>Whether the extension should place live wallpaper actors over the normal GNOME wallpaper.</description>
+    </key>
+
     <key name="pause-on-fullscreen" type="b">
       <default>true</default>
       <summary>Pause when a window is fullscreen</summary>

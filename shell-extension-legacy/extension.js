@@ -152,9 +152,11 @@ class LivedeskExtension {
         this._lockSignalId = null;
         this._retryTimeoutId = null;
 
-        this._connectDBus();
-        this._rebuildMonitors();
-        this._applySettingsToDaemon();
+        if (this._wallpaperEnabled()) {
+            this._connectDBus();
+            this._rebuildMonitors();
+            this._applySettingsToDaemon();
+        }
 
         this._monitorsChangedId = Main.layoutManager.connect(
             'monitors-changed',
@@ -162,7 +164,7 @@ class LivedeskExtension {
         );
 
         this._settingsChangedId = this._settings.connect('changed', () => {
-            this._applySettingsToDaemon();
+            this._syncWallpaperState();
         });
 
         this._connectFullscreenWatch();
@@ -199,6 +201,8 @@ class LivedeskExtension {
     }
 
     _connectDBus() {
+        if (!this._wallpaperEnabled())
+            return false;
         try {
             this._proxy = this._createProxy();
             return true;
@@ -219,11 +223,17 @@ class LivedeskExtension {
     }
 
     _scheduleReconnect() {
+        if (!this._wallpaperEnabled())
+            return;
         if (this._retryTimeoutId)
             return;
 
         this._retryTimeoutId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 2, () => {
             try {
+                if (!this._wallpaperEnabled()) {
+                    this._retryTimeoutId = null;
+                    return GLib.SOURCE_REMOVE;
+                }
                 this._proxy = this._createProxy();
                 this._retryTimeoutId = null;
                 log('livedesk: connected to daemon over D-Bus');
@@ -237,6 +247,8 @@ class LivedeskExtension {
     }
 
     _maybeSpawnDaemon() {
+        if (!this._wallpaperEnabled())
+            return;
         try {
             GLib.spawn_command_line_async('systemctl --user start livedesk-daemon.service');
         } catch (_) {
@@ -258,9 +270,9 @@ class LivedeskExtension {
     }
 
     _rebuildMonitors() {
-        for (const m of this._monitors)
-            m.destroy();
-        this._monitors = [];
+        this._clearMonitors();
+        if (!this._wallpaperEnabled())
+            return;
 
         const monitors = Main.layoutManager.monitors;
         for (let i = 0; i < monitors.length; i++) {
@@ -278,7 +290,7 @@ class LivedeskExtension {
     }
 
     _applySettingsToDaemon() {
-        if (!this._proxy)
+        if (!this._wallpaperEnabled() || !this._proxy)
             return;
         const uri = this._settings.get_string('video-uri');
         const muted = this._settings.get_boolean('muted');
@@ -293,7 +305,7 @@ class LivedeskExtension {
     }
 
     _setAllPaused(paused) {
-        if (!this._proxy)
+        if (!this._wallpaperEnabled() || !this._proxy)
             return;
         for (const m of this._monitors) {
             if (paused)
@@ -327,6 +339,34 @@ class LivedeskExtension {
         } catch (e) {
             logError(e, 'livedesk: lock-screen watch unavailable on this GNOME version');
         }
+    }
+
+    _wallpaperEnabled() {
+        return this._settings && this._settings.get_boolean('wallpaper-enabled');
+    }
+
+    _clearMonitors() {
+        for (const m of this._monitors)
+            m.destroy();
+        this._monitors = [];
+    }
+
+    _syncWallpaperState() {
+        if (!this._wallpaperEnabled()) {
+            if (this._retryTimeoutId) {
+                GLib.source_remove(this._retryTimeoutId);
+                this._retryTimeoutId = null;
+            }
+            this._clearMonitors();
+            this._proxy = null;
+            return;
+        }
+
+        if (!this._proxy)
+            this._connectDBus();
+        if (this._monitors.length === 0)
+            this._rebuildMonitors();
+        this._applySettingsToDaemon();
     }
 }
 

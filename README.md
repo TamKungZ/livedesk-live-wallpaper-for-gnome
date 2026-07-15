@@ -359,8 +359,8 @@ upload command for each target series.
 Upload the generated source changes files to a PPA:
 
 ```bash
-dput ppa:<launchpad-user>/<ppa-name> dist/launchpad/jammy/livedesk_0.1.2-1~jammy1_source.changes
-dput ppa:<launchpad-user>/<ppa-name> dist/launchpad/noble/livedesk_0.1.2-1~noble1_source.changes
+dput ppa:<launchpad-user>/<ppa-name> dist/launchpad/jammy/livedesk_0.1.3-1~jammy1_source.changes
+dput ppa:<launchpad-user>/<ppa-name> dist/launchpad/noble/livedesk_0.1.3-1~noble1_source.changes
 ```
 
 ## GitHub Releases

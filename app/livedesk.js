@@ -23,8 +23,9 @@ const THUMB_HEIGHT = 107;
 const TILE_LABEL_CHARS = 24;
 const GRID_MARGIN = 18;
 const GRID_GAP = 24;
-const APP_VERSION = '0.1.2';
+const APP_VERSION = '0.1.3';
 const EXT_UUID = 'livedesk@me.tamkungz';
+const EXT_SCHEMA_ID = 'me.tamkungz.Livedesk';
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.webm', '.mkv', '.mov', '.avi', '.m4v', '.ogv']);
 
 const DBUS_IFACE_XML = `
@@ -71,6 +72,8 @@ function defaultConfig() {
         titles: {},
         selected: '',
         muted: true,
+        service_mode_disabled: false,
+        autostart_disabled: false,
         monitors: {
             'monitor-0': {
                 uri: '',
@@ -89,6 +92,8 @@ function loadConfig() {
         config.library = Array.isArray(config.library) ? config.library : [];
         config.titles = config.titles && typeof config.titles === 'object' ? config.titles : {};
         config.library_dir = config.library_dir || defaultLibraryDir();
+        config.service_mode_disabled = Boolean(config.service_mode_disabled);
+        config.autostart_disabled = Boolean(config.autostart_disabled);
 
         const firstMonitor = Object.keys(config.monitors)[0] ?? 'monitor-0';
         const activeUri = config.selected || config.monitors[firstMonitor]?.uri || '';
@@ -221,6 +226,14 @@ function programExists(name) {
     return Boolean(GLib.find_program_in_path(name));
 }
 
+function extensionSettings() {
+    try {
+        return new Gio.Settings({schema_id: EXT_SCHEMA_ID});
+    } catch (_) {
+        return null;
+    }
+}
+
 function thumbnailForUri(uri) {
     const input = fileUriToPath(uri);
     const output = thumbnailPathForUri(uri);
@@ -329,7 +342,7 @@ class LivedeskApp extends Adw.Application {
         this._addAction('start-daemon', () => this._startDaemon());
         this._addAction('play', () => this._callDaemon('PlayRemote'));
         this._addAction('pause', () => this._callDaemon('PauseRemote'));
-        this._addAction('stop', () => this._callDaemon('StopRemote'));
+        this._addAction('stop', () => this._restoreWallpaper());
         this._addAction('set-default', () => this._setDefault());
         this._addAction('apply', () => this._saveAndApply());
         this._addAction('settings', () => this._toggleSettings());
@@ -390,7 +403,8 @@ class LivedeskApp extends Adw.Application {
         header.pack_end(this._iconButton('help-about-symbolic', 'About Livedesk', () => this._showAbout()));
         header.pack_end(this._iconButton('emblem-system-symbolic', 'Settings', () => this._toggleSettings()));
         header.pack_end(this._iconButton('view-refresh-symbolic', 'Refresh library', () => this._refreshLibrary()));
-        header.pack_end(this._iconButton('media-playback-stop-symbolic', 'Stop', () => this._callDaemon('StopRemote')));
+        header.pack_end(this._iconButton('user-desktop-symbolic', 'Restore normal wallpaper', () => this._restoreWallpaper()));
+        header.pack_end(this._iconButton('media-playback-stop-symbolic', 'Stop and restore normal wallpaper', () => this._restoreWallpaper()));
         header.pack_end(this._iconButton('media-playback-pause-symbolic', 'Pause', () => this._callDaemon('PauseRemote')));
         header.pack_end(this._iconButton('media-playback-start-symbolic', 'Play', () => this._callDaemon('PlayRemote')));
         root.append(header);
@@ -660,7 +674,10 @@ class LivedeskApp extends Adw.Application {
             active,
             valign: Gtk.Align.CENTER,
         });
-        widget.connect('notify::active', () => onChanged(widget.active));
+        widget.connect('notify::active', () => {
+            if (!this._updatingServiceSwitches)
+                onChanged(widget.active);
+        });
         row.add_suffix(widget);
         row.activatable_widget = widget;
         group.add(row);
@@ -670,7 +687,14 @@ class LivedeskApp extends Adw.Application {
     _bootstrapUserSession() {
         if (programExists('systemctl')) {
             runCommand(['systemctl', '--user', 'daemon-reload']);
-            runCommand(['systemctl', '--user', 'enable', '--now', 'livedesk-daemon.service']);
+            if (!this._config.service_mode_disabled) {
+                runCommand(['systemctl', '--user', 'unmask', 'livedesk-daemon.service']);
+                if (!this._config.autostart_disabled)
+                    runCommand(['systemctl', '--user', 'enable', 'livedesk-daemon.service']);
+                runCommand(['systemctl', '--user', 'start', 'livedesk-daemon.service']);
+                if (this._config.autostart_disabled)
+                    runCommand(['systemctl', '--user', 'mask', 'livedesk-daemon.service']);
+            }
         }
 
         if (programExists('gnome-extensions')) {
@@ -688,10 +712,12 @@ class LivedeskApp extends Adw.Application {
     }
 
     _refreshServiceSwitches() {
+        this._updatingServiceSwitches = true;
         if (this._serviceSwitch)
             this._serviceSwitch.active = commandSucceeds(['systemctl', '--user', 'is-active', '--quiet', 'livedesk-daemon.service']);
         if (this._autostartSwitch)
             this._autostartSwitch.active = commandSucceeds(['systemctl', '--user', 'is-enabled', '--quiet', 'livedesk-daemon.service']);
+        this._updatingServiceSwitches = false;
     }
 
     _extensionVisible() {
@@ -733,9 +759,9 @@ class LivedeskApp extends Adw.Application {
         if (!state.hasSystemctl) {
             actions.push('systemctl is not available. Install user systemd support, then run livedesk-setup.');
         } else {
-            if (!state.serviceActive)
+            if (!state.serviceActive && !this._config.service_mode_disabled)
                 actions.push('Start the background service with Run Setup, Enable service mode, or livedesk-setup.');
-            if (!state.autostartEnabled)
+            if (!state.autostartEnabled && !this._config.autostart_disabled)
                 actions.push('Enable Autostart on login, or run livedesk-setup.');
         }
 
@@ -762,9 +788,9 @@ class LivedeskApp extends Adw.Application {
             return 'Log out and back in once, then open Livedesk or run livedesk-setup again.';
         if (!state.extensionEnabled)
             return 'Enable Livedesk in GNOME Extensions, or run setup again.';
-        if (!state.serviceActive)
+        if (!state.serviceActive && !this._config.service_mode_disabled)
             return 'Run setup or enable service mode to start the background daemon.';
-        if (!state.autostartEnabled)
+        if (!state.autostartEnabled && !this._config.autostart_disabled)
             return 'Enable Autostart on login, or run setup again.';
         return 'Setup is complete. Pick a video and click Save and Apply.';
     }
@@ -778,6 +804,12 @@ class LivedeskApp extends Adw.Application {
         const result = programExists('livedesk-setup')
             ? runCommandWithOutput(['livedesk-setup'])
             : {ok: false, stdout: '', stderr: 'livedesk-setup was not found in PATH.', status: -1};
+
+        if (result.ok) {
+            this._config.service_mode_disabled = false;
+            this._config.autostart_disabled = false;
+            this._saveConfigOnly();
+        }
 
         this._connectProxy();
         this._refreshServiceSwitches();
@@ -1087,15 +1119,19 @@ class LivedeskApp extends Adw.Application {
 
     _setServiceActive(active) {
         try {
-            GLib.spawn_async(
-                null,
-                ['systemctl', '--user', active ? 'start' : 'stop', 'livedesk-daemon.service'],
-                null,
-                GLib.SpawnFlags.SEARCH_PATH,
-                null
-            );
-            if (active)
+            this._config.service_mode_disabled = !active;
+            this._saveConfigOnly();
+            if (active) {
+                runCommand(['systemctl', '--user', 'unmask', 'livedesk-daemon.service']);
+                runCommand(['systemctl', '--user', 'start', 'livedesk-daemon.service']);
+                if (this._config.autostart_disabled)
+                    runCommand(['systemctl', '--user', 'mask', 'livedesk-daemon.service']);
                 this._connectProxy();
+            } else {
+                this._setWallpaperEnabled(false);
+                runCommand(['systemctl', '--user', 'stop', 'livedesk-daemon.service']);
+            }
+            this._refreshSetupStatus();
         } catch (e) {
             this._showError(`Failed to ${active ? 'start' : 'stop'} service: ${e.message}`);
         }
@@ -1103,13 +1139,28 @@ class LivedeskApp extends Adw.Application {
 
     _setAutostartActive(active) {
         try {
-            GLib.spawn_async(
-                null,
-                ['systemctl', '--user', active ? 'enable' : 'disable', 'livedesk-daemon.service'],
-                null,
-                GLib.SpawnFlags.SEARCH_PATH,
-                null
-            );
+            this._config.autostart_disabled = !active;
+            this._saveConfigOnly();
+            if (active) {
+                runCommand(['systemctl', '--user', 'unmask', 'livedesk-daemon.service']);
+                GLib.spawn_async(
+                    null,
+                    ['systemctl', '--user', 'enable', 'livedesk-daemon.service'],
+                    null,
+                    GLib.SpawnFlags.SEARCH_PATH,
+                    null
+                );
+            } else {
+                runCommand(['systemctl', '--user', 'disable', 'livedesk-daemon.service']);
+                GLib.spawn_async(
+                    null,
+                    ['systemctl', '--user', 'mask', 'livedesk-daemon.service'],
+                    null,
+                    GLib.SpawnFlags.SEARCH_PATH,
+                    null
+                );
+            }
+            this._refreshSetupStatus();
         } catch (e) {
             this._showError(`Failed to update autostart: ${e.message}`);
         }
@@ -1117,6 +1168,7 @@ class LivedeskApp extends Adw.Application {
 
     _saveAndApply() {
         this._saveConfigOnly();
+        this._setWallpaperEnabled(true);
         this._connectProxy();
 
         if (!this._proxy) {
@@ -1134,6 +1186,7 @@ class LivedeskApp extends Adw.Application {
     }
 
     _playSelected() {
+        this._setWallpaperEnabled(true);
         this._connectProxy();
         if (!this._proxy || !this._config.selected)
             return;
@@ -1145,12 +1198,31 @@ class LivedeskApp extends Adw.Application {
     }
 
     _callDaemon(method) {
+        if (method === 'PlayRemote')
+            this._setWallpaperEnabled(true);
         this._connectProxy();
         if (!this._proxy) {
             this._showError('Daemon is not available.');
             return;
         }
         this._proxy[method](this._activeMonitor());
+    }
+
+    _setWallpaperEnabled(enabled) {
+        const settings = extensionSettings();
+        try {
+            settings?.set_boolean('wallpaper-enabled', enabled);
+        } catch (_) {
+        }
+    }
+
+    _restoreWallpaper() {
+        this._setWallpaperEnabled(false);
+        this._connectProxy();
+        if (this._proxy) {
+            for (const monitor of this._monitors ?? [])
+                this._proxy.StopRemote(monitor.name);
+        }
     }
 
     _showAbout() {

@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## 0.1.3
+
+- Fixed the app startup bootstrap so disabled service mode and autostart settings are not re-enabled when Livedesk is opened again.
+- Kept first-run setup automatic by enabling and starting the user daemon unless the user has explicitly disabled service mode or autostart.
+- Changed package post-install scripts to stop globally enabling the user daemon by default.
+- Changed Autostart off to apply a per-user systemd mask so it overrides older global package autostart state.
+- Updated `livedesk-setup` to unmask the user daemon before enabling it again.
+- Added a header-bar action to restore the normal GNOME wallpaper.
+- Changed Stop to stop playback and restore the normal GNOME wallpaper instead of leaving the live wallpaper actor visible.
+- Added extension state for hiding and recreating live wallpaper actors when wallpaper playback is disabled or applied again.
+- Bumped package, daemon, app, and extension metadata versions for the 0.1.3 release.
+
 ## 0.1.2
 
 - Added first-run app bootstrap that reloads user systemd units, enables and starts the Livedesk daemon, and enables the GNOME Shell extension when the current session can already see it.

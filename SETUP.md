@@ -19,7 +19,7 @@ livedesk
 Or install a local Debian package from `dist/` or from a GitHub release:
 
 ```bash
-sudo dpkg -i dist/livedesk_0.1.2_amd64.deb
+sudo dpkg -i dist/livedesk_0.1.3_amd64.deb
 livedesk
 ```
 
@@ -62,7 +62,7 @@ livedesk
 Or install a local RPM:
 
 ```bash
-sudo rpm -Uvh dist/livedesk-0.1.2-1.x86_64.rpm
+sudo rpm -Uvh dist/livedesk-0.1.3-1.x86_64.rpm
 livedesk
 ```
 

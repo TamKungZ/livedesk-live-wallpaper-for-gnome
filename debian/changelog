@@ -1,3 +1,17 @@
+livedesk (0.1.3-1~noble1) noble; urgency=medium
+
+  * Preserve disabled service/autostart settings when opening the app.
+  * Add restore-normal-wallpaper controls for stopping live wallpaper actors.
+
+ -- TamKungZ_ <dev@tamkungz.me>  Wed, 15 Jul 2026 12:00:00 +0700
+
+livedesk (0.1.3-1~jammy1) jammy; urgency=medium
+
+  * Preserve disabled service/autostart settings when opening the app.
+  * Add restore-normal-wallpaper controls for stopping live wallpaper actors.
+
+ -- TamKungZ_ <dev@tamkungz.me>  Wed, 15 Jul 2026 12:00:00 +0700
+
 livedesk (0.1.2-1~noble4) noble; urgency=medium
 
   * Launchpad PPA source package with vendored Rust crates.

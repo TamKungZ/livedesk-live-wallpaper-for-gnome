@@ -21,7 +21,6 @@ install_extension_variant() {
 case "$1" in
   configure)
     install_extension_variant
-    systemctl --global enable livedesk-daemon.service >/dev/null 2>&1 || true
     rm -f /usr/share/applications/me.tamkungz.Livedesk.desktop
     ;;
 esac
