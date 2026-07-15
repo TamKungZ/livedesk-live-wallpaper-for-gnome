@@ -1,4 +1,4 @@
-livedesk (0.1.2-1~noble1) noble; urgency=medium
+livedesk (0.1.2-1~noble4) noble; urgency=medium
 
   * Launchpad PPA source package with vendored Rust crates.
   * Build the native daemon offline from daemon/vendor.
