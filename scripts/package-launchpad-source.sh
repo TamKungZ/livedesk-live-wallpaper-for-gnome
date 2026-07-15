@@ -8,6 +8,10 @@ DEB_REVISION="${DEB_REVISION:-1~${SERIES}1}"
 WORK_DIR="$ROOT_DIR/target/launchpad-source"
 SRC_DIR="$WORK_DIR/livedesk-$VERSION"
 OUT_DIR="$ROOT_DIR/dist/launchpad/$SERIES"
+SIGN_FLAGS=()
+if [ "${UNSIGNED:-0}" = "1" ]; then
+  SIGN_FLAGS=(-us -uc)
+fi
 
 if [ ! -d "$ROOT_DIR/daemon/vendor" ]; then
   cat >&2 <<'EOF'
@@ -41,7 +45,7 @@ tar -C "$WORK_DIR" \
   -czf "$WORK_DIR/livedesk_${VERSION}.orig.tar.gz" \
   "livedesk-$VERSION"
 
-(cd "$SRC_DIR" && debuild -S -sa -us -uc -d)
+(cd "$SRC_DIR" && debuild -S -sa -d "${SIGN_FLAGS[@]}")
 
 cp "$WORK_DIR"/livedesk_"$VERSION".orig.tar.gz "$OUT_DIR"/
 cp "$WORK_DIR"/livedesk_"$VERSION"-"$DEB_REVISION".debian.tar.xz "$OUT_DIR"/

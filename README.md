@@ -323,6 +323,10 @@ SERIES=jammy scripts/package-launchpad-source.sh
 SERIES=noble scripts/package-launchpad-source.sh
 ```
 
+The upload files are signed by default because Launchpad requires signed
+`.changes` files. For local unsigned testing only, run with
+`UNSIGNED=1`.
+
 Upload the generated source changes files to a PPA:
 
 ```bash

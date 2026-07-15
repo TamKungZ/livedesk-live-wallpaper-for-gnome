@@ -10,6 +10,7 @@
 - Changed the startup setup notice to stay silent when setup is complete and list only the missing user actions when setup is incomplete.
 - Added Launchpad PPA source packaging with vendored Rust crates for offline builders.
 - Added per-series Launchpad source generation for Jammy and Noble uploads.
+- Signed Launchpad source uploads by default, with `UNSIGNED=1` available for local-only tests.
 - Enabled the user daemon globally from Debian/RPM package post-install scripts where supported, so Livedesk starts automatically on future logins.
 - Updated install guidance so opening `livedesk` is the primary post-install step, with `livedesk-setup` kept as a manual fallback.
 - Bumped package, daemon, app, and extension metadata versions for the 0.1.2 release.
