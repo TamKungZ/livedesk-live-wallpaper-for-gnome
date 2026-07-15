@@ -25,7 +25,6 @@ const GRID_MARGIN = 18;
 const GRID_GAP = 24;
 const APP_VERSION = '0.1.2';
 const EXT_UUID = 'livedesk@me.tamkungz';
-const SETUP_NOTICE_PATH = GLib.build_filenamev([CONFIG_DIR, `setup-notice-${APP_VERSION}`]);
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.webm', '.mkv', '.mov', '.avi', '.m4v', '.ogv']);
 
 const DBUS_IFACE_XML = `
@@ -186,6 +185,31 @@ function runCommand(args) {
         return ok && status === 0;
     } catch (_) {
         return false;
+    }
+}
+
+function runCommandWithOutput(args) {
+    try {
+        const [ok, stdout, stderr, status] = GLib.spawn_sync(
+            null,
+            args,
+            null,
+            GLib.SpawnFlags.SEARCH_PATH,
+            null
+        );
+        return {
+            ok: ok && status === 0,
+            stdout: new TextDecoder().decode(stdout ?? new Uint8Array()),
+            stderr: new TextDecoder().decode(stderr ?? new Uint8Array()),
+            status,
+        };
+    } catch (e) {
+        return {
+            ok: false,
+            stdout: '',
+            stderr: e.message,
+            status: -1,
+        };
     }
 }
 
@@ -543,6 +567,26 @@ class LivedeskApp extends Adw.Application {
             active => this._setAutostartActive(active)
         );
 
+        const setupRow = new Adw.ActionRow({
+            title: 'Setup current session',
+            subtitle: 'Runs livedesk-setup. If GNOME Shell still cannot see the extension, log out and back in once.',
+        });
+        const setupButton = new Gtk.Button({
+            label: 'Run Setup',
+            valign: Gtk.Align.CENTER,
+        });
+        setupButton.add_css_class('suggested-action');
+        setupButton.connect('clicked', () => this._runSetupHelper());
+        setupRow.add_suffix(setupButton);
+        setupRow.activatable_widget = setupButton;
+        group.add(setupRow);
+
+        this._setupStatusRow = new Adw.ActionRow({
+            title: 'User action needed',
+            subtitle: this._setupStatusText(),
+        });
+        group.add(this._setupStatusRow);
+
         return page;
     }
 
@@ -624,8 +668,6 @@ class LivedeskApp extends Adw.Application {
     }
 
     _bootstrapUserSession() {
-        let needsSessionRestart = false;
-
         if (programExists('systemctl')) {
             runCommand(['systemctl', '--user', 'daemon-reload']);
             runCommand(['systemctl', '--user', 'enable', '--now', 'livedesk-daemon.service']);
@@ -634,18 +676,15 @@ class LivedeskApp extends Adw.Application {
         if (programExists('gnome-extensions')) {
             if (runCommand(['gnome-extensions', 'info', EXT_UUID]))
                 runCommand(['gnome-extensions', 'enable', EXT_UUID]);
-            else
-                needsSessionRestart = true;
         }
 
         this._connectProxy();
         this._refreshServiceSwitches();
+        this._refreshSetupStatus();
 
-        if (needsSessionRestart && !GLib.file_test(SETUP_NOTICE_PATH, GLib.FileTest.EXISTS)) {
-            GLib.mkdir_with_parents(CONFIG_DIR, 0o755);
-            GLib.file_set_contents(SETUP_NOTICE_PATH, `${new Date().toISOString()}\n`);
-            this._showError('Livedesk was installed and the background service was enabled. Log out and back in once so GNOME Shell can discover the extension, then open Livedesk again.');
-        }
+        const message = this._setupNeedsActionText();
+        if (message)
+            this._showError(message);
     }
 
     _refreshServiceSwitches() {
@@ -653,6 +692,104 @@ class LivedeskApp extends Adw.Application {
             this._serviceSwitch.active = commandSucceeds(['systemctl', '--user', 'is-active', '--quiet', 'livedesk-daemon.service']);
         if (this._autostartSwitch)
             this._autostartSwitch.active = commandSucceeds(['systemctl', '--user', 'is-enabled', '--quiet', 'livedesk-daemon.service']);
+    }
+
+    _extensionVisible() {
+        return programExists('gnome-extensions')
+            && commandSucceeds(['gnome-extensions', 'info', EXT_UUID]);
+    }
+
+    _extensionEnabled() {
+        if (!programExists('gnome-extensions'))
+            return false;
+        const result = runCommandWithOutput(['gnome-extensions', 'list', '--enabled']);
+        return result.ok && result.stdout.split('\n').includes(EXT_UUID);
+    }
+
+    _setupState() {
+        const hasSystemctl = programExists('systemctl');
+        const serviceActive = hasSystemctl
+            && commandSucceeds(['systemctl', '--user', 'is-active', '--quiet', 'livedesk-daemon.service']);
+        const autostartEnabled = hasSystemctl
+            && commandSucceeds(['systemctl', '--user', 'is-enabled', '--quiet', 'livedesk-daemon.service']);
+        const hasExtensionsCli = programExists('gnome-extensions');
+        const extensionVisible = hasExtensionsCli && this._extensionVisible();
+        const extensionEnabled = extensionVisible && this._extensionEnabled();
+
+        return {
+            hasSystemctl,
+            serviceActive,
+            autostartEnabled,
+            hasExtensionsCli,
+            extensionVisible,
+            extensionEnabled,
+        };
+    }
+
+    _setupNeedsActionText() {
+        const state = this._setupState();
+        const actions = [];
+
+        if (!state.hasSystemctl) {
+            actions.push('systemctl is not available. Install user systemd support, then run livedesk-setup.');
+        } else {
+            if (!state.serviceActive)
+                actions.push('Start the background service with Run Setup, Enable service mode, or livedesk-setup.');
+            if (!state.autostartEnabled)
+                actions.push('Enable Autostart on login, or run livedesk-setup.');
+        }
+
+        if (!state.hasExtensionsCli) {
+            actions.push('gnome-extensions is not available. Enable Livedesk from the GNOME Extensions app.');
+        } else if (!state.extensionVisible) {
+            actions.push('Log out and back in once so GNOME Shell can discover the Livedesk extension. On X11, restarting GNOME Shell may also work.');
+        } else if (!state.extensionEnabled) {
+            actions.push('Enable the Livedesk extension with Run Setup or the GNOME Extensions app.');
+        }
+
+        if (actions.length === 0)
+            return '';
+        return actions.join('\n\n');
+    }
+
+    _setupStatusText() {
+        const state = this._setupState();
+        if (!state.hasSystemctl && !state.hasExtensionsCli)
+            return 'Run livedesk-setup in a terminal after installing GNOME extension tools and user systemd support.';
+        if (!state.hasExtensionsCli)
+            return 'Enable Livedesk from the GNOME Extensions app, then run setup again.';
+        if (!state.extensionVisible)
+            return 'Log out and back in once, then open Livedesk or run livedesk-setup again.';
+        if (!state.extensionEnabled)
+            return 'Enable Livedesk in GNOME Extensions, or run setup again.';
+        if (!state.serviceActive)
+            return 'Run setup or enable service mode to start the background daemon.';
+        if (!state.autostartEnabled)
+            return 'Enable Autostart on login, or run setup again.';
+        return 'Setup is complete. Pick a video and click Save and Apply.';
+    }
+
+    _refreshSetupStatus() {
+        if (this._setupStatusRow)
+            this._setupStatusRow.subtitle = this._setupStatusText();
+    }
+
+    _runSetupHelper() {
+        const result = programExists('livedesk-setup')
+            ? runCommandWithOutput(['livedesk-setup'])
+            : {ok: false, stdout: '', stderr: 'livedesk-setup was not found in PATH.', status: -1};
+
+        this._connectProxy();
+        this._refreshServiceSwitches();
+        this._refreshSetupStatus();
+
+        if (result.ok) {
+            this._showError(this._setupNeedsActionText() || 'Setup is complete. Pick a video and click Save and Apply.');
+            return;
+        }
+
+        const detail = (result.stderr || result.stdout || `Exit status ${result.status}`).trim();
+        this._showError(`Setup could not finish automatically.\n\n${detail}\n\nYou can still run livedesk-setup in a terminal, then log out and back in if GNOME Shell does not see the extension.`);
     }
 
     _detectMonitors() {

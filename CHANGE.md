@@ -5,6 +5,9 @@
 ## 0.1.2
 
 - Added first-run app bootstrap that reloads user systemd units, enables and starts the Livedesk daemon, and enables the GNOME Shell extension when the current session can already see it.
+- Added a GTK setup button for manually running `livedesk-setup` from the Background Service settings page.
+- Added setup status text that tells the user when a logout/login is still required for GNOME Shell extension discovery.
+- Changed the startup setup notice to stay silent when setup is complete and list only the missing user actions when setup is incomplete.
 - Enabled the user daemon globally from Debian/RPM package post-install scripts where supported, so Livedesk starts automatically on future logins.
 - Updated install guidance so opening `livedesk` is the primary post-install step, with `livedesk-setup` kept as a manual fallback.
 - Bumped package, daemon, app, and extension metadata versions for the 0.1.2 release.
