@@ -16,18 +16,6 @@
       <description>Wallpapers are silent by default.</description>
     </key>
 
-    <key name="video-uri" type="s">
-      <default>''</default>
-      <summary>Active video wallpaper URI</summary>
-      <description>The video source used by the native GNOME Shell background overlay.</description>
-    </key>
-
-    <key name="still-uri" type="s">
-      <default>''</default>
-      <summary>Active still wallpaper URI</summary>
-      <description>A first-frame image used by GNOME surfaces that cannot preview video files.</description>
-    </key>
-
     <key name="pause-on-fullscreen" type="b">
       <default>true</default>
       <summary>Pause when a window is fullscreen</summary>

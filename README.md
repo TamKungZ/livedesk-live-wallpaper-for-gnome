@@ -26,18 +26,15 @@
 
 Livedesk lets GNOME use a video file as the desktop background.
 
-When a video is applied, Livedesk writes a first-frame PNG to GNOME's normal
-wallpaper setting:
+In Livedesk 1.0, applying a video writes it to GNOME's normal wallpaper setting:
 
 ```text
 org.gnome.desktop.background picture-uri
 ```
 
-The video URI is stored in Livedesk's own GSettings schema. GNOME Shell then
-loads Livedesk's native background module and plays that video behind normal
-windows when the visible wallpaper is the matching first-frame image. Livedesk
-is not a hidden fullscreen player and no GNOME Shell extension is used on the
-current native path.
+GNOME Shell then loads Livedesk's native background module and plays that video
+behind normal windows. Livedesk is not a hidden fullscreen player and no GNOME
+Shell extension is used on the current native path.
 
 ## Supported GNOME Versions
 
@@ -144,8 +141,6 @@ When a video is applied, Livedesk also stores the first video frame as a PNG in:
 ```
 
 That still frame is used for GNOME surfaces that still expect a normal image.
-GNOME Settings and other preview UIs should show this PNG instead of a black
-video placeholder.
 
 To see detailed action logs while testing, start the app from a terminal:
 
@@ -231,8 +226,6 @@ Check the current GNOME wallpaper URI:
 ```bash
 gsettings get org.gnome.desktop.background picture-uri
 gsettings get org.gnome.desktop.background picture-uri-dark
-gsettings get me.tamkungz.Livedesk video-uri
-gsettings get me.tamkungz.Livedesk still-uri
 ```
 
 Check GNOME Shell logs:
@@ -286,10 +279,9 @@ under paths such as:
 It also used extension-specific settings such as `video-uri` and
 `wallpaper-enabled`.
 
-Livedesk 1.0 removes the extension runtime. The native path stores a first-frame
-PNG in GNOME's normal `org.gnome.desktop.background picture-uri` setting, stores
-the video source in `me.tamkungz.Livedesk video-uri`, and loads the background
-renderer through a GNOME Shell JS overlay.
+Livedesk 1.0 removes the extension runtime. The native path instead uses
+GNOME's normal `org.gnome.desktop.background picture-uri` setting as the video
+source and loads the background renderer through a GNOME Shell JS overlay.
 
 `livedesk-uninstall` still removes the old extension directories so users
 upgrading from 0.1.x can clean up stale files.

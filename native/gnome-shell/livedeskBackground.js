@@ -17,8 +17,6 @@ const INTERFACE_SCHEMA = 'org.gnome.desktop.interface';
 const PICTURE_URI_KEY = 'picture-uri';
 const PICTURE_URI_DARK_KEY = 'picture-uri-dark';
 const COLOR_SCHEME_KEY = 'color-scheme';
-const VIDEO_URI_KEY = 'video-uri';
-const STILL_URI_KEY = 'still-uri';
 const PREFER_DARK = 1;
 
 const DBUS_IFACE_XML = `
@@ -207,7 +205,7 @@ class LivedeskNativeBackground {
         if (this._destroyed || !this.actor)
             return;
 
-        const uri = this._backgroundVideoUri();
+        const uri = this._backgroundUri();
         if (!_isVideoUri(uri)) {
             this.actor.hide();
             this._stopPolling();
@@ -224,19 +222,6 @@ class LivedeskNativeBackground {
 
         this._applySettingsToDaemon(uri);
         this._restartPolling();
-    }
-
-    _backgroundVideoUri() {
-        const backgroundUri = this._backgroundUri();
-        if (_isVideoUri(backgroundUri))
-            return backgroundUri;
-
-        const videoUri = _settingString(this._settings, VIDEO_URI_KEY);
-        const stillUri = _settingString(this._settings, STILL_URI_KEY);
-        if (_isVideoUri(videoUri) && stillUri && backgroundUri === stillUri)
-            return videoUri;
-
-        return '';
     }
 
     _backgroundUri() {
@@ -283,11 +268,11 @@ class LivedeskNativeBackground {
 
         this._retryTimeoutId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 2, () => {
             this._retryTimeoutId = 0;
-            if (this._destroyed || !_isVideoUri(this._backgroundVideoUri()))
+            if (this._destroyed || !_isVideoUri(this._backgroundUri()))
                 return GLib.SOURCE_REMOVE;
 
             if (this._connectDBus()) {
-                this._applySettingsToDaemon(this._backgroundVideoUri());
+                this._applySettingsToDaemon(this._backgroundUri());
                 return GLib.SOURCE_REMOVE;
             }
 

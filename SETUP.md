@@ -2,17 +2,15 @@
 
 This guide covers the current native setup path.
 
-Livedesk makes GNOME's background renderer play video while keeping GNOME's
-normal background URI usable by apps that need an image. When the app applies a
-video, it writes a first-frame PNG to:
+Livedesk makes GNOME's own background URI accept video files. When the app
+applies a video, it writes the video URI to:
 
 ```text
 org.gnome.desktop.background picture-uri
 org.gnome.desktop.background picture-uri-dark
 ```
 
-The video URI is written to `me.tamkungz.Livedesk video-uri`. The GNOME Shell
-native overlay detects the matching still image, reads that video URI, and asks
+The GNOME Shell native overlay detects that the URI is a video and asks
 `livedesk-daemon` to decode frames for the background actor.
 
 ## Recommended Install
@@ -145,8 +143,6 @@ Check the current GNOME background URI:
 ```bash
 gsettings get org.gnome.desktop.background picture-uri
 gsettings get org.gnome.desktop.background picture-uri-dark
-gsettings get me.tamkungz.Livedesk video-uri
-gsettings get me.tamkungz.Livedesk still-uri
 ```
 
 Check GNOME Shell logs:
