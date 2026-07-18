@@ -55,15 +55,37 @@ find_shell_library() {
   return 1
 }
 
-extract_background_js() {
+extract_resource() {
   local shell_lib="$1"
-  local out="$2"
+  local resource="$2"
+  local out="$3"
 
-  if gresource extract "$shell_lib" /org/gnome/shell/ui/background.js > "$out"; then
+  if gresource extract "$shell_lib" "$resource" > "$out"; then
     return 0
   fi
 
   return 1
+}
+
+extract_shell_js_tree() {
+  local shell_lib="$1"
+  local resource rel out
+
+  while IFS= read -r resource; do
+    rel="${resource#/org/gnome/shell/}"
+    out="$NATIVE_DIR/$rel"
+    mkdir -p "$(dirname "$out")"
+    extract_resource "$shell_lib" "$resource" "$out"
+  done < <(gresource list "$shell_lib" | grep '^/org/gnome/shell/.*\.js$')
+
+  [ -f "$NATIVE_DIR/ui/environment.js" ] || {
+    warn "Failed to extract GNOME Shell ui/environment.js."
+    return 1
+  }
+  [ -f "$NATIVE_DIR/ui/background.js" ] || {
+    warn "Failed to extract GNOME Shell ui/background.js."
+    return 1
+  }
 }
 
 patch_background_js() {
@@ -111,9 +133,9 @@ install_native_shell_overlay() {
 
   info "Installing GNOME Shell native background overlay"
   rm -rf "$NATIVE_DIR"
-  mkdir -p "$NATIVE_DIR/ui"
+  mkdir -p "$NATIVE_DIR"
 
-  extract_background_js "$shell_lib" "$NATIVE_DIR/ui/background.js"
+  extract_shell_js_tree "$shell_lib"
   cp "$native_module" "$NATIVE_DIR/ui/livedeskBackground.js"
   patch_background_js "$NATIVE_DIR/ui/background.js"
 
@@ -130,6 +152,8 @@ EOF
 
 check_native() {
   [ -f "$NATIVE_DIR/ui/background.js" ] || return 1
+  [ -f "$NATIVE_DIR/ui/environment.js" ] || return 1
+  [ -f "$NATIVE_DIR/misc/config.js" ] || return 1
   [ -f "$NATIVE_DIR/ui/livedeskBackground.js" ] || return 1
   grep -q "LivedeskBackground.attachToBackgroundManager" "$NATIVE_DIR/ui/background.js" || return 1
   [ -f "$ENV_FILE" ] || return 1
@@ -154,9 +178,13 @@ case "${1:-}" in
     check_native
     exit $?
     ;;
+  --install-native-only)
+    install_native_shell_overlay
+    exit 0
+    ;;
   -h|--help)
     cat <<'EOF'
-Usage: livedesk-setup [--check-native]
+Usage: livedesk-setup [--check-native] [--install-native-only]
 
 Installs the user-session native GNOME Shell JS overlay for Livedesk and starts
 the user daemon. Log out and back in once after setup so GNOME Shell starts with
