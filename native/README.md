@@ -21,6 +21,8 @@ renderer instead of being a separate Clutter actor. This is the stricter
 "background by the compositor's background renderer" design, but it requires a
 Mutter patch and will be more version-sensitive than the Shell-native path.
 
+The working notes and acceptance criteria live in `mutter/`.
+
 ## Why There Is No Standalone Wayland Binary Here
 
 A standalone Wayland client cannot draw behind GNOME Shell's compositor-owned

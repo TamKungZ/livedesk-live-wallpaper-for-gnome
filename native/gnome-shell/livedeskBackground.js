@@ -60,6 +60,20 @@ const WallpaperProxy = Gio.DBusProxy.makeProxyWrapper(DBUS_IFACE_XML);
 const FRAME_MAGIC = 'GVW1';
 const HEADER_LEN = 24;
 const DEFAULT_FPS = 30;
+const _monitorStates = new Map();
+
+function _monitorState(name) {
+    if (!_monitorStates.has(name)) {
+        _monitorStates.set(name, {
+            content: null,
+            framePath: '',
+            lastSeq: -1,
+            uri: '',
+        });
+    }
+
+    return _monitorStates.get(name);
+}
 
 function _settings(schemaId) {
     try {
@@ -128,6 +142,8 @@ class LivedeskNativeBackground {
         this._layoutManager = bgManager._layoutManager;
         this._monitorIndex = bgManager._monitorIndex;
         this._monitorName = `monitor-${this._monitorIndex}`;
+        this._controlsDaemon = bgManager._controlPosition ?? true;
+        this._monitorState = _monitorState(this._monitorName);
 
         this._settings = _settings(LIVEDESK_SCHEMA);
         this._backgroundSettings = _settings(BACKGROUND_SCHEMA);
@@ -182,8 +198,17 @@ class LivedeskNativeBackground {
 
         this._container.add_child(this.actor);
         this._container.set_child_above_sibling(this.actor, this._backgroundActor);
+        this._reuseLastFrame();
 
         this._backgroundActor.connect('destroy', () => this.destroy());
+    }
+
+    _reuseLastFrame() {
+        if (!this.actor || !this._monitorState.content)
+            return;
+
+        this.actor.set_content(this._monitorState.content);
+        this._lastGoodSeq = this._monitorState.lastSeq;
     }
 
     _connectSettings() {
@@ -214,7 +239,7 @@ class LivedeskNativeBackground {
             this.actor.hide();
             this._stopPolling();
 
-            if (this._proxy)
+            if (this._controlsDaemon && this._proxy)
                 this._proxy.PauseRemote(this._monitorName);
             return;
         }
@@ -224,7 +249,8 @@ class LivedeskNativeBackground {
         if (!this._proxy)
             this._connectDBus();
 
-        this._applySettingsToDaemon(uri);
+        if (this._controlsDaemon)
+            this._applySettingsToDaemon(uri);
         this._restartPolling();
     }
 
@@ -250,17 +276,25 @@ class LivedeskNativeBackground {
             if (!this._proxy.get_name_owner())
                 throw new Error('daemon D-Bus name has no owner yet');
 
+            if (this._monitorState.framePath) {
+                this._framePath = this._monitorState.framePath;
+                this._restartPolling();
+            }
+
             this._proxy.FramePathRemote(this._monitorName, ([path]) => {
                 if (this._destroyed)
                     return;
                 this._framePath = path;
+                this._monitorState.framePath = path;
                 this._restartPolling();
             });
             return true;
         } catch (e) {
             this._proxy = null;
-            logError(e, 'livedesk-native: could not connect to daemon over D-Bus');
-            this._maybeSpawnDaemon();
+            if (this._controlsDaemon) {
+                logError(e, 'livedesk-native: could not connect to daemon over D-Bus');
+                this._maybeSpawnDaemon();
+            }
             this._scheduleReconnect();
             return false;
         }
@@ -276,7 +310,8 @@ class LivedeskNativeBackground {
                 return GLib.SOURCE_REMOVE;
 
             if (this._connectDBus()) {
-                this._applySettingsToDaemon(this._backgroundUri());
+                if (this._controlsDaemon)
+                    this._applySettingsToDaemon(this._backgroundUri());
                 return GLib.SOURCE_REMOVE;
             }
 
@@ -319,8 +354,10 @@ class LivedeskNativeBackground {
         const width = monitor?.width ?? 1920;
         const height = monitor?.height ?? 1080;
 
-        if (uri)
+        if (uri) {
+            this._monitorState.uri = uri;
             this._proxy.SetMonitorSourceRemote(this._monitorName, uri, width, height);
+        }
         this._proxy.SetMutedRemote(this._monitorName, muted);
     }
 
@@ -400,6 +437,8 @@ class LivedeskNativeBackground {
         if (ok) {
             this.actor.set_content(image);
             this._lastGoodSeq = Number(seq1);
+            this._monitorState.content = image;
+            this._monitorState.lastSeq = this._lastGoodSeq;
         }
     }
 
@@ -434,6 +473,8 @@ class LivedeskNativeBackground {
         this._backgroundActor = null;
         this._container = null;
         this._layoutManager = null;
+        this._controlsDaemon = false;
+        this._monitorState = null;
     }
 }
 
