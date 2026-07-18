@@ -98,6 +98,7 @@ remove_user_install() {
   info "Removing user install files"
   rm -f "$HOME/.local/bin/livedesk"
   rm -f "$HOME/.local/bin/livedesk-daemon"
+  rm -f "$HOME/.local/bin/livedesk-tray"
   rm -f "$HOME/.local/bin/livedesk-setup"
   rm -f "$HOME/.local/bin/livedesk-uninstall"
   rm -f "$HOME/.local/share/applications/$APP_DESKTOP"
@@ -141,6 +142,7 @@ remove_system_package() {
       info "Removing system install files"
       run_root rm -f /usr/bin/livedesk
       run_root rm -f /usr/bin/livedesk-daemon
+      run_root rm -f /usr/bin/livedesk-tray
       run_root rm -f /usr/bin/livedesk-setup
       run_root rm -f /usr/bin/livedesk-uninstall
       run_root rm -f "/usr/share/applications/$APP_DESKTOP"

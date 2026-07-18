@@ -18,6 +18,7 @@ override_dh_auto_install:
 	dh_auto_install
 	install -D -m 755 daemon/target/release/livedesk-daemon debian/livedesk/usr/bin/livedesk-daemon
 	install -D -m 755 app/livedesk.js debian/livedesk/usr/bin/livedesk
+	install -D -m 755 app/livedesk-tray.js debian/livedesk/usr/bin/livedesk-tray
 	install -D -m 755 scripts/livedesk-setup.sh debian/livedesk/usr/bin/livedesk-setup
 	install -D -m 755 scripts/livedesk-uninstall.sh debian/livedesk/usr/bin/livedesk-uninstall
 	install -D -m 644 data/me.tamkungz.LivedeskApp.desktop debian/livedesk/usr/share/applications/me.tamkungz.LivedeskApp.desktop

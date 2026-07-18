@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Installs Livedesk:
 #   1. builds livedesk-daemon (release) and copies it to ~/.local/bin
-#   2. installs the Livedesk GTK app into ~/.local/bin and applications
+#   2. installs the Livedesk GTK app/tray helper into ~/.local/bin and applications
 #   3. installs the GNOME Shell native background patch helper files
 #   4. installs and compiles the Livedesk GSettings schema
 #   5. installs a systemd --user unit for the daemon
@@ -23,11 +23,24 @@ echo "==> Checking build dependencies (rustc/cargo, pkg-config, GStreamer dev he
 for cmd in cargo rustc pkg-config gjs; do
   command -v "$cmd" >/dev/null || {
     echo "Missing '$cmd'. On Debian/Ubuntu:"
-    echo "  sudo apt install cargo rustc pkg-config gjs gir1.2-gtk-4.0 gir1.2-adw-1 \\"
+    echo "  sudo apt install cargo rustc pkg-config gjs gir1.2-gtk-4.0 gir1.2-gtk-3.0 \\"
+    echo "    gir1.2-adw-1 gir1.2-ayatanaappindicator3-0.1 \\"
     echo "    libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libdbus-1-dev"
     exit 1
   }
 done
+
+echo "==> Checking GJS runtime typelibs (GTK4/Libadwaita and GTK3/Ayatana tray)"
+gjs -c "imports.gi.versions.Gtk='4.0'; imports.gi.versions.Adw='1'; imports.gi.Gtk; imports.gi.Adw;" >/dev/null || {
+  echo "Missing GTK4/Libadwaita GJS typelibs. On Debian/Ubuntu:"
+  echo "  sudo apt install gir1.2-gtk-4.0 gir1.2-adw-1"
+  exit 1
+}
+gjs -c "imports.gi.versions.Gtk='3.0'; imports.gi.versions.AyatanaAppIndicator3='0.1'; imports.gi.Gtk; imports.gi.AyatanaAppIndicator3;" >/dev/null || {
+  echo "Missing GTK3/Ayatana AppIndicator GJS typelibs for the tray icon. On Debian/Ubuntu:"
+  echo "  sudo apt install gir1.2-gtk-3.0 gir1.2-ayatanaappindicator3-0.1"
+  exit 1
+}
 
 echo "==> Building livedesk-daemon (release)"
 (cd "$SCRIPT_DIR/daemon" && cargo build --release)
@@ -38,6 +51,7 @@ install -m 755 "$SCRIPT_DIR/daemon/target/release/livedesk-daemon" "$BIN_DEST/li
 
 echo "==> Installing Livedesk app to $BIN_DEST"
 install -m 755 "$SCRIPT_DIR/app/livedesk.js" "$BIN_DEST/livedesk"
+install -m 755 "$SCRIPT_DIR/app/livedesk-tray.js" "$BIN_DEST/livedesk-tray"
 install -m 755 "$SCRIPT_DIR/scripts/livedesk-setup.sh" "$BIN_DEST/livedesk-setup"
 install -m 755 "$SCRIPT_DIR/scripts/livedesk-uninstall.sh" "$BIN_DEST/livedesk-uninstall"
 mkdir -p "$APP_DEST"

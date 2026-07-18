@@ -17,6 +17,7 @@ const CONFIG_PATH = GLib.build_filenamev([CONFIG_DIR, 'config.json']);
 const CACHE_DIR = GLib.build_filenamev([GLib.get_user_cache_dir(), 'livedesk']);
 const LOG_PATH = GLib.build_filenamev([CACHE_DIR, 'livedesk.log']);
 const THUMB_DIR = GLib.build_filenamev([CACHE_DIR, 'thumbnails']);
+const STILL_DIR = GLib.build_filenamev([CACHE_DIR, 'stills']);
 const TILE_WIDTH = 210;
 const TILE_HEIGHT = 154;
 const THUMB_WIDTH = 190;
@@ -27,6 +28,7 @@ const GRID_GAP = 24;
 const APP_VERSION = '1.0.0';
 const LIVEDESK_SCHEMA_ID = 'me.tamkungz.Livedesk';
 const GNOME_BACKGROUND_SCHEMA_ID = 'org.gnome.desktop.background';
+const GNOME_SCREENSAVER_SCHEMA_ID = 'org.gnome.desktop.screensaver';
 const PICTURE_URI_KEY = 'picture-uri';
 const PICTURE_URI_DARK_KEY = 'picture-uri-dark';
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.webm', '.mkv', '.mov', '.avi', '.m4v', '.ogv']);
@@ -71,6 +73,7 @@ function ensureDirs(config) {
     GLib.mkdir_with_parents(CONFIG_DIR, 0o755);
     GLib.mkdir_with_parents(CACHE_DIR, 0o755);
     GLib.mkdir_with_parents(THUMB_DIR, 0o755);
+    GLib.mkdir_with_parents(STILL_DIR, 0o755);
     GLib.mkdir_with_parents(config.library_dir, 0o755);
 }
 
@@ -82,6 +85,8 @@ function defaultConfig() {
         selected: '',
         previous_background_uri: '',
         previous_background_uri_dark: '',
+        previous_screensaver_uri: '',
+        still_uri: '',
         muted: true,
         service_mode_disabled: false,
         autostart_disabled: false,
@@ -107,6 +112,8 @@ function loadConfig() {
         config.autostart_disabled = Boolean(config.autostart_disabled);
         config.previous_background_uri = config.previous_background_uri || '';
         config.previous_background_uri_dark = config.previous_background_uri_dark || '';
+        config.previous_screensaver_uri = config.previous_screensaver_uri || '';
+        config.still_uri = config.still_uri || '';
 
         const firstMonitor = Object.keys(config.monitors)[0] ?? 'monitor-0';
         const activeUri = config.selected || config.monitors[firstMonitor]?.uri || '';
@@ -191,6 +198,11 @@ function thumbnailPathForUri(uri) {
     return GLib.build_filenamev([THUMB_DIR, `${hash}.png`]);
 }
 
+function stillPathForUri(uri) {
+    const hash = GLib.compute_checksum_for_string(GLib.ChecksumType.SHA256, uri, -1);
+    return GLib.build_filenamev([STILL_DIR, `${hash}.png`]);
+}
+
 function runCommand(args) {
     return runCommandWithOutput(args).ok;
 }
@@ -238,6 +250,19 @@ function commandLine(args) {
     return args.map(arg => arg.includes(' ') ? `'${arg}'` : arg).join(' ');
 }
 
+function commandResultText(args, result) {
+    return [
+        `$ ${commandLine(args)}`,
+        `status=${result.status} ok=${result.ok}`,
+        result.stdout.trim() ? `stdout: ${result.stdout.trim()}` : '',
+        result.stderr.trim() ? `stderr: ${result.stderr.trim()}` : '',
+    ].filter(Boolean).join('\n');
+}
+
+function appendCommandResult(args, result) {
+    appendLog(commandResultText(args, result));
+}
+
 function commandSucceeds(args) {
     return runCommand(args);
 }
@@ -257,6 +282,14 @@ function livedeskSettings() {
 function gnomeBackgroundSettings() {
     try {
         return new Gio.Settings({schema_id: GNOME_BACKGROUND_SCHEMA_ID});
+    } catch (_) {
+        return null;
+    }
+}
+
+function gnomeScreensaverSettings() {
+    try {
+        return new Gio.Settings({schema_id: GNOME_SCREENSAVER_SCHEMA_ID});
     } catch (_) {
         return null;
     }
@@ -290,6 +323,37 @@ function thumbnailForUri(uri) {
         return output;
     if (runCommand(['ffmpeg', '-y', '-ss', '00:00:01', '-i', input, '-frames:v', '1', '-vf', 'scale=640:-1', output]))
         return output;
+    return null;
+}
+
+function stillForUri(uri) {
+    const input = fileUriToPath(uri);
+    const output = stillPathForUri(uri);
+    if (GLib.file_test(output, GLib.FileTest.EXISTS)) {
+        appendLog(`Still fallback already cached: ${output}`);
+        return output;
+    }
+    if (!input || input === uri || !GLib.file_test(input, GLib.FileTest.EXISTS))
+        return null;
+
+    GLib.mkdir_with_parents(STILL_DIR, 0o755);
+    appendLog(`Generating still fallback from first video frame: ${input}`);
+    const ffmpegArgs = ['ffmpeg', '-y', '-ss', '00:00:00', '-i', input, '-frames:v', '1', '-vf', 'scale=1920:-1', output];
+    const ffmpegResult = runCommandWithOutput(ffmpegArgs);
+    appendCommandResult(ffmpegArgs, ffmpegResult);
+    if (ffmpegResult.ok) {
+        appendLog(`Still fallback written: ${output}`);
+        return output;
+    }
+    const thumbnailerArgs = ['totem-video-thumbnailer', '-s', '1920', input, output];
+    const thumbnailerResult = runCommandWithOutput(thumbnailerArgs);
+    appendCommandResult(thumbnailerArgs, thumbnailerResult);
+    if (thumbnailerResult.ok) {
+        appendLog(`Still fallback written: ${output}`);
+        return output;
+    }
+
+    appendLog(`Still fallback failed for: ${input}`);
     return null;
 }
 
@@ -371,6 +435,7 @@ class LivedeskApp extends Adw.Application {
         this._connectProxy();
         this._buildActions();
         this._buildWindow();
+        this._startTrayIcon();
         this._window.present();
         appendLog('app started');
         GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
@@ -380,30 +445,61 @@ class LivedeskApp extends Adw.Application {
     }
 
     _buildActions() {
-        this._addAction('add-video', () => this._chooseVideo());
-        this._addAction('open-library', () => this._openLibrary());
-        this._addAction('refresh-library', () => this._refreshLibrary());
-        this._addAction('start-daemon', () => this._startDaemon());
-        this._addAction('play', () => this._callDaemon('PlayRemote'));
-        this._addAction('pause', () => this._callDaemon('PauseRemote'));
-        this._addAction('stop', () => this._restoreWallpaper());
-        this._addAction('set-default', () => this._setDefault());
-        this._addAction('apply', () => this._saveAndApply());
-        this._addAction('settings', () => this._toggleSettings());
-        this._addAction('about', () => this._showAbout());
+        this._addAction('add-video', 'Import video', () => this._chooseVideo());
+        this._addAction('open-library', 'Open library folder', () => this._openLibrary());
+        this._addAction('refresh-library', 'Refresh library', () => this._refreshLibrary());
+        this._addAction('start-daemon', 'Start daemon', () => this._startDaemon());
+        this._addAction('play', 'Play selected wallpaper', () => this._callDaemon('PlayRemote'));
+        this._addAction('pause', 'Pause wallpaper playback', () => this._callDaemon('PauseRemote'));
+        this._addAction('stop', 'Restore normal wallpaper', () => this._restoreWallpaper());
+        this._addAction('set-default', 'Save selected video as default', () => this._setDefault());
+        this._addAction('apply', 'Save and apply selected video', () => this._saveAndApply());
+        this._addAction('settings', 'Toggle settings', () => this._toggleSettings());
+        this._addAction('about', 'Show about window', () => this._showAbout());
     }
 
-    _addAction(name, callback) {
+    _addAction(name, label, callback) {
         const action = new Gio.SimpleAction({name});
-        action.connect('activate', callback);
+        action.connect('activate', () => {
+            this._logAction(`Action: ${label}`);
+            callback();
+        });
         this.add_action(action);
     }
 
     _connectProxy() {
         try {
             this._proxy = new LivedeskProxy(Gio.DBus.session, DBUS_NAME, DBUS_PATH);
+            appendLog('Connected to daemon D-Bus proxy');
         } catch (_) {
             this._proxy = null;
+            appendLog('Daemon D-Bus proxy unavailable');
+        }
+    }
+
+    _startTrayIcon() {
+        const installed = GLib.find_program_in_path('livedesk-tray');
+        const local = GLib.build_filenamev([GLib.get_current_dir(), 'app', 'livedesk-tray.js']);
+        const args = installed
+            ? ['livedesk-tray']
+            : (GLib.file_test(local, GLib.FileTest.EXISTS) ? ['gjs', local] : null);
+
+        if (!args) {
+            appendLog('Tray icon skipped: livedesk-tray helper not found');
+            return;
+        }
+
+        try {
+            GLib.spawn_async(
+                null,
+                args,
+                null,
+                GLib.SpawnFlags.SEARCH_PATH,
+                null
+            );
+            appendLog(`Tray icon helper spawned: ${args.join(' ')}`);
+        } catch (e) {
+            appendLog(`Tray icon helper failed: ${e.message}`);
         }
     }
 
@@ -473,12 +569,18 @@ class LivedeskApp extends Adw.Application {
             label: 'Set Default',
             sensitive: Boolean(this._config.selected),
         });
-        this._setDefaultButton.connect('clicked', () => this._setDefault());
+        this._setDefaultButton.connect('clicked', () => {
+            this._logAction('Button: Set Default');
+            this._setDefault();
+        });
         footer.append(this._setDefaultButton);
 
         this._saveApplyButton = new Gtk.Button({label: 'Save and Apply'});
         this._saveApplyButton.add_css_class('suggested-action');
-        this._saveApplyButton.connect('clicked', () => this._saveAndApply());
+        this._saveApplyButton.connect('clicked', () => {
+            this._logAction('Button: Save and Apply');
+            this._saveAndApply();
+        });
         footer.append(this._saveApplyButton);
         root.append(footer);
 
@@ -492,7 +594,10 @@ class LivedeskApp extends Adw.Application {
             icon_name: iconName,
             tooltip_text: tooltip,
         });
-        button.connect('clicked', callback);
+        button.connect('clicked', () => {
+            this._logAction(`Button: ${tooltip}`);
+            callback();
+        });
         return button;
     }
 
@@ -504,12 +609,14 @@ class LivedeskApp extends Adw.Application {
     }
 
     _showGallery() {
+        this._logAction('View: gallery');
         this._stack.visible_child_name = 'gallery';
         this._backButton.visible = false;
         this._footer.visible = true;
     }
 
     _showSettings() {
+        this._logAction('View: settings');
         this._stack.visible_child_name = 'settings';
         this._backButton.visible = true;
         this._footer.visible = false;
@@ -634,7 +741,10 @@ class LivedeskApp extends Adw.Application {
             valign: Gtk.Align.CENTER,
         });
         setupButton.add_css_class('suggested-action');
-        setupButton.connect('clicked', () => this._runSetupHelper());
+        setupButton.connect('clicked', () => {
+            this._logAction('Button: Run Setup');
+            this._runSetupHelper();
+        });
         setupRow.add_suffix(setupButton);
         setupRow.activatable_widget = setupButton;
         group.add(setupRow);
@@ -725,8 +835,10 @@ class LivedeskApp extends Adw.Application {
             valign: Gtk.Align.CENTER,
         });
         widget.connect('notify::active', () => {
-            if (!this._updatingServiceSwitches)
+            if (!this._updatingServiceSwitches) {
+                this._logAction(`Switch: ${title} -> ${widget.active ? 'on' : 'off'}`);
                 onChanged(widget.active);
+            }
         });
         row.add_suffix(widget);
         row.activatable_widget = widget;
@@ -955,6 +1067,7 @@ class LivedeskApp extends Adw.Application {
         }
         preview.tooltip_text = 'Double-click to use this video';
         preview.add_controller(this._doubleClick(() => {
+            this._logAction(`Tile double-click: ${displayNameForUri(uri)}`);
             this._selectVideo(uri);
             this._playSelected();
         }));
@@ -970,7 +1083,10 @@ class LivedeskApp extends Adw.Application {
             width_request: THUMB_WIDTH,
         });
         label.tooltip_text = 'Double-click to edit title';
-        label.add_controller(this._doubleClick(() => this._editTitle(uri)));
+        label.add_controller(this._doubleClick(() => {
+            this._logAction(`Title double-click: ${displayNameForUri(uri)}`);
+            this._editTitle(uri);
+        }));
         card.append(label);
 
         if (this._config.selected === uri) {
@@ -1003,7 +1119,10 @@ class LivedeskApp extends Adw.Application {
         box.append(new Gtk.Image({icon_name: 'folder-open-symbolic', pixel_size: 28}));
         box.append(new Gtk.Label({label: 'Open folder'}));
         button.set_child(box);
-        button.connect('clicked', () => this._openLibrary());
+        button.connect('clicked', () => {
+            this._logAction('Button: Open library from empty gallery');
+            this._openLibrary();
+        });
         return button;
     }
 
@@ -1051,6 +1170,7 @@ class LivedeskApp extends Adw.Application {
 
     _applyTitle(uri, requestedTitle) {
         const title = requestedTitle.trim();
+        this._logAction(`Saving title for ${displayNameForUri(uri)}: ${title || '(default)'}`);
         this._config.titles = this._config.titles ?? {};
         if (!title || title === displayNameForUri(uri))
             delete this._config.titles[uri];
@@ -1061,6 +1181,7 @@ class LivedeskApp extends Adw.Application {
     }
 
     _selectVideo(uri) {
+        this._logAction(`Selected video: ${fileUriToPath(uri)}`);
         this._config.selected = uri;
         if (this._selectedRow)
             this._selectedRow.subtitle = fileUriToPath(uri);
@@ -1070,9 +1191,11 @@ class LivedeskApp extends Adw.Application {
 
     _chooseVideo() {
         if (this._importDialog) {
+            this._logAction('Import dialog already open');
             this._importDialog.show();
             return;
         }
+        this._logAction('Opening video import dialog');
 
         const dialog = new Gtk.FileChooserNative({
             title: 'Select a video',
@@ -1091,6 +1214,7 @@ class LivedeskApp extends Adw.Application {
             if (response === Gtk.ResponseType.ACCEPT) {
                 try {
                     const uri = importVideoToLibrary(dlg.get_file().get_uri(), this._config.library_dir);
+                    this._logAction(`Imported video: ${fileUriToPath(uri)}`);
                     this._selectVideo(uri);
                     this._saveConfigOnly();
                 } catch (e) {
@@ -1106,6 +1230,7 @@ class LivedeskApp extends Adw.Application {
 
     _openLibrary() {
         ensureDirs(this._config);
+        this._logAction(`Opening library folder: ${this._config.library_dir}`);
         try {
             Gio.AppInfo.launch_default_for_uri(
                 Gio.File.new_for_path(this._config.library_dir).get_uri(),
@@ -1117,6 +1242,7 @@ class LivedeskApp extends Adw.Application {
     }
 
     _refreshLibrary() {
+        this._logAction('Refreshing video library');
         this._config.library = scanLibrary(this._config);
         if (this._flowBox)
             this._reloadGallery();
@@ -1129,8 +1255,11 @@ class LivedeskApp extends Adw.Application {
     }
 
     _setDefault() {
-        if (!this._config.selected)
+        if (!this._config.selected) {
+            this._logAction('Set Default ignored: no selected video');
             return;
+        }
+        this._logAction(`Saving default video: ${fileUriToPath(this._config.selected)}`);
         this._saveConfigOnly();
     }
 
@@ -1140,6 +1269,7 @@ class LivedeskApp extends Adw.Application {
         this._config.monitors[monitor] = this._activeMonitorConfig();
         this._config.muted = this._mutedSwitch?.active ?? this._config.muted ?? true;
         saveConfig(this._config);
+        appendLog(`Saved config: monitor=${monitor} muted=${this._config.muted} selected=${fileUriToPath(this._config.selected)}`);
     }
 
     _startDaemon() {
@@ -1185,6 +1315,7 @@ class LivedeskApp extends Adw.Application {
     }
 
     _saveAndApply() {
+        this._logAction(`Applying selected video: ${fileUriToPath(this._config.selected)}`);
         this._saveConfigOnly();
         this._applyGnomeBackground(this._config.selected);
         this._connectProxy();
@@ -1198,6 +1329,7 @@ class LivedeskApp extends Adw.Application {
         const uri = this._config.selected;
         const monitorConfig = this._activeMonitorConfig();
         if (uri) {
+            this._logAction(`D-Bus: SetMonitorSource monitor=${monitor} size=${monitorConfig.width}x${monitorConfig.height}`);
             this._proxy.SetMonitorSourceRemote(
                 monitor,
                 uri,
@@ -1205,12 +1337,16 @@ class LivedeskApp extends Adw.Application {
                 monitorConfig.height
             );
         }
+        this._logAction(`D-Bus: SetMuted monitor=${monitor} muted=${this._mutedSwitch?.active ?? this._config.muted ?? true}`);
         this._proxy.SetMutedRemote(monitor, this._mutedSwitch?.active ?? this._config.muted ?? true);
-        if (uri)
+        if (uri) {
+            this._logAction(`D-Bus: Play monitor=${monitor}`);
             this._proxy.PlayRemote(monitor);
+        }
     }
 
     _playSelected() {
+        this._logAction(`Playing selected video: ${fileUriToPath(this._config.selected)}`);
         this._saveConfigOnly();
         this._applyGnomeBackground(this._config.selected);
         this._connectProxy();
@@ -1219,17 +1355,21 @@ class LivedeskApp extends Adw.Application {
 
         const monitor = this._activeMonitor();
         const monitorConfig = this._activeMonitorConfig();
+        this._logAction(`D-Bus: SetMonitorSource monitor=${monitor} size=${monitorConfig.width}x${monitorConfig.height}`);
         this._proxy.SetMonitorSourceRemote(
             monitor,
             this._config.selected,
             monitorConfig.width,
             monitorConfig.height
         );
+        this._logAction(`D-Bus: SetMuted monitor=${monitor} muted=${this._mutedSwitch?.active ?? this._config.muted ?? true}`);
         this._proxy.SetMutedRemote(monitor, this._mutedSwitch?.active ?? this._config.muted ?? true);
+        this._logAction(`D-Bus: Play monitor=${monitor}`);
         this._proxy.PlayRemote(monitor);
     }
 
     _callDaemon(method) {
+        this._logAction(`D-Bus requested: ${method}`);
         if (method === 'PlayRemote')
             this._applyGnomeBackground(this._config.selected);
         this._connectProxy();
@@ -1237,6 +1377,7 @@ class LivedeskApp extends Adw.Application {
             this._showError('Daemon is not available.');
             return;
         }
+        this._logAction(`D-Bus: ${method} monitor=${this._activeMonitor()}`);
         this._proxy[method](this._activeMonitor());
     }
 
@@ -1257,8 +1398,20 @@ class LivedeskApp extends Adw.Application {
         if (currentDark && currentDark !== uri && !isVideoName(currentDark))
             this._config.previous_background_uri_dark = currentDark;
 
+        this._logAction(`GNOME background picture-uri -> ${uri}`);
         setSettingsString(settings, PICTURE_URI_KEY, uri);
         setSettingsString(settings, PICTURE_URI_DARK_KEY, uri);
+
+        const still = stillForUri(uri);
+        const screensaver = gnomeScreensaverSettings();
+        if (still && screensaver) {
+            const currentScreensaver = settingsString(screensaver, PICTURE_URI_KEY);
+            if (currentScreensaver && currentScreensaver !== Gio.File.new_for_path(still).get_uri())
+                this._config.previous_screensaver_uri = currentScreensaver;
+            this._config.still_uri = Gio.File.new_for_path(still).get_uri();
+            this._logAction(`GNOME screensaver picture-uri -> ${this._config.still_uri}`);
+            setSettingsString(screensaver, PICTURE_URI_KEY, this._config.still_uri);
+        }
 
         const lsettings = livedeskSettings();
         lsettings?.set_boolean('muted', this._mutedSwitch?.active ?? this._config.muted ?? true);
@@ -1267,18 +1420,31 @@ class LivedeskApp extends Adw.Application {
     }
 
     _restoreWallpaper() {
+        this._logAction('Restoring previous normal wallpaper');
         const settings = gnomeBackgroundSettings();
         if (settings) {
-            if (this._config.previous_background_uri)
+            if (this._config.previous_background_uri) {
+                this._logAction(`GNOME background picture-uri -> ${this._config.previous_background_uri}`);
                 setSettingsString(settings, PICTURE_URI_KEY, this._config.previous_background_uri);
-            if (this._config.previous_background_uri_dark)
+            }
+            if (this._config.previous_background_uri_dark) {
+                this._logAction(`GNOME background picture-uri-dark -> ${this._config.previous_background_uri_dark}`);
                 setSettingsString(settings, PICTURE_URI_DARK_KEY, this._config.previous_background_uri_dark);
+            }
+        }
+
+        const screensaver = gnomeScreensaverSettings();
+        if (screensaver && this._config.previous_screensaver_uri) {
+            this._logAction(`GNOME screensaver picture-uri -> ${this._config.previous_screensaver_uri}`);
+            setSettingsString(screensaver, PICTURE_URI_KEY, this._config.previous_screensaver_uri);
         }
 
         this._connectProxy();
         if (this._proxy) {
-            for (const monitor of this._monitors ?? [])
+            for (const monitor of this._monitors ?? []) {
+                this._logAction(`D-Bus: Stop monitor=${monitor.name}`);
                 this._proxy.StopRemote(monitor.name);
+            }
         }
     }
 
@@ -1303,12 +1469,7 @@ class LivedeskApp extends Adw.Application {
     }
 
     _logCommandResult(args, result) {
-        const detail = [
-            `$ ${commandLine(args)}`,
-            `status=${result.status} ok=${result.ok}`,
-            result.stdout.trim() ? `stdout: ${result.stdout.trim()}` : '',
-            result.stderr.trim() ? `stderr: ${result.stderr.trim()}` : '',
-        ].filter(Boolean).join('\n');
+        const detail = commandResultText(args, result);
         appendLog(detail);
         if (this._lastActionRow)
             this._lastActionRow.subtitle = detail;

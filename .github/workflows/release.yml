@@ -36,6 +36,8 @@ jobs:
             git \
             gjs \
             gir1.2-adw-1 \
+            gir1.2-ayatanaappindicator3-0.1 \
+            gir1.2-gtk-3.0 \
             gir1.2-gtk-4.0 \
             gnome-shell \
             gnupg \

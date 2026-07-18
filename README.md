@@ -96,6 +96,7 @@ Install build dependencies first. On Debian/Ubuntu:
 
 ```bash
 sudo apt install cargo rustc pkg-config gjs gir1.2-gtk-4.0 gir1.2-adw-1 \
+  gir1.2-gtk-3.0 gir1.2-ayatanaappindicator3-0.1 \
   libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libdbus-1-dev \
   libunwind-dev libglib2.0-bin \
   gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav \
@@ -130,7 +131,29 @@ Put videos in:
 Double-click a video thumbnail, or select a video and click `Save and Apply`.
 
 The app can import videos into the library, generate thumbnails, mute playback,
-start/stop the background daemon, and restore the previous normal wallpaper.
+start/stop the background daemon, show a tray icon on panels that support
+AppIndicator/Ayatana indicators, and restore the previous normal wallpaper.
+
+When a video is applied, Livedesk also stores the first video frame as a PNG in:
+
+```text
+~/.cache/livedesk/stills
+```
+
+That still frame is used for GNOME surfaces that still expect a normal image.
+
+To see detailed action logs while testing, start the app from a terminal:
+
+```bash
+livedesk
+```
+
+Every button/action, setup command, daemon call, still-frame command, and command
+result is printed to the terminal and appended to:
+
+```text
+~/.cache/livedesk/livedesk.log
+```
 
 ## What Setup Changes
 

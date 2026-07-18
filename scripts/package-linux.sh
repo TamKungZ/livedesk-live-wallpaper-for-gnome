@@ -27,6 +27,7 @@ install_tree() {
 
   install -m 755 "$ROOT_DIR/daemon/target/release/livedesk-daemon" "$STAGE/usr/bin/livedesk-daemon"
   install -m 755 "$ROOT_DIR/app/livedesk.js" "$STAGE/usr/bin/livedesk"
+  install -m 755 "$ROOT_DIR/app/livedesk-tray.js" "$STAGE/usr/bin/livedesk-tray"
   install -m 755 "$ROOT_DIR/scripts/livedesk-setup.sh" "$STAGE/usr/bin/livedesk-setup"
   install -m 755 "$ROOT_DIR/scripts/livedesk-uninstall.sh" "$STAGE/usr/bin/livedesk-uninstall"
   install -m 644 "$ROOT_DIR/data/me.tamkungz.LivedeskApp.desktop" "$STAGE/usr/share/applications/me.tamkungz.LivedeskApp.desktop"
@@ -58,7 +59,7 @@ Section: gnome
 Priority: optional
 Architecture: $ARCH_DEB
 Maintainer: TamKungZ_ <dev@tamkungz.me>
-Depends: gjs, gir1.2-gtk-4.0, gir1.2-adw-1, gnome-shell, libgstreamer1.0-0, gstreamer1.0-plugins-good, gstreamer1.0-plugins-bad, gstreamer1.0-libav, dbus-user-session
+Depends: gjs, gir1.2-gtk-4.0, gir1.2-gtk-3.0, gir1.2-adw-1, gir1.2-ayatanaappindicator3-0.1, gnome-shell, libgstreamer1.0-0, gstreamer1.0-plugins-good, gstreamer1.0-plugins-bad, gstreamer1.0-libav, dbus-user-session
 Recommends: totem | ffmpeg
 Description: Live video wallpaper for GNOME
  Livedesk teaches GNOME's background setting to accept video files via
@@ -109,8 +110,10 @@ License: GPL-3.0-or-later
 URL: https://github.com/TamKungZ/livedesk-live-wallpaper-for-gnome
 Source0: livedesk-%{version}.tar.gz
 Requires: gjs
+Requires: gtk3
 Requires: gtk4
 Requires: libadwaita
+Requires: libayatana-appindicator-gtk3
 Requires: gnome-shell
 Requires: gstreamer1
 Recommends: totem
@@ -139,6 +142,7 @@ rm -f /usr/share/applications/me.tamkungz.Livedesk.desktop
 %doc /usr/share/doc/livedesk/CHANGE.md
 /usr/bin/livedesk
 /usr/bin/livedesk-daemon
+/usr/bin/livedesk-tray
 /usr/bin/livedesk-setup
 /usr/bin/livedesk-uninstall
 /usr/share/applications/me.tamkungz.LivedeskApp.desktop

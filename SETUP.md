@@ -65,6 +65,7 @@ Install build dependencies first. On Debian/Ubuntu:
 
 ```bash
 sudo apt install cargo rustc pkg-config gjs gir1.2-gtk-4.0 gir1.2-adw-1 \
+  gir1.2-gtk-3.0 gir1.2-ayatanaappindicator3-0.1 \
   libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libdbus-1-dev \
   libunwind-dev libglib2.0-bin \
   gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav \
@@ -95,6 +96,24 @@ Put videos in:
 ```
 
 Double-click a thumbnail, or click `Save and Apply`.
+
+If you launch `livedesk` from a terminal, the app prints detailed logs for each
+button/action, system command, daemon call, and still-frame generation step. The
+same log is saved to:
+
+```text
+~/.cache/livedesk/livedesk.log
+```
+
+Livedesk also creates a first-frame PNG fallback under:
+
+```text
+~/.cache/livedesk/stills
+```
+
+That image is used where GNOME still needs a static wallpaper image. A tray icon
+is started automatically when the desktop session provides Ayatana/AppIndicator
+support.
 
 ## Native Support Status
 
