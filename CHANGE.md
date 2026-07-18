@@ -7,6 +7,7 @@
 - Added terminal-visible action logging for app buttons, setup commands, daemon calls, and still-frame generation.
 - Added first-frame static PNG fallback generation for GNOME surfaces that still need an image wallpaper.
 - Added a separate Ayatana/AppIndicator tray helper with quick app, play, pause, restore, and log actions.
+- Fixed black GNOME/Zorin overview backgrounds by attaching the native live actor to workspace preview backgrounds as well as the desktop background.
 
 ## 1.0.0
 

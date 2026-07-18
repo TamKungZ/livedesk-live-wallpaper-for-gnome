@@ -161,11 +161,15 @@ class LivedeskNativeBackground {
         if (!monitor)
             return;
 
+        const controlPosition = this._bgManager._controlPosition ?? true;
+        const x = controlPosition ? monitor.x : 0;
+        const y = controlPosition ? monitor.y : 0;
+
         this.actor = new Clutter.Actor({
             name: 'livedesk-native-background',
             reactive: false,
-            x: monitor.x,
-            y: monitor.y,
+            x,
+            y,
             width: monitor.width,
             height: monitor.height,
             background_color: new Clutter.Color({
@@ -328,6 +332,7 @@ class LivedeskNativeBackground {
 
         const fps = Math.max(1, _settingInt(this._settings, 'frame-rate', DEFAULT_FPS));
         const intervalMs = Math.max(16, Math.round(1000 / fps));
+        this._tick();
         this._timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, intervalMs, () => {
             this._tick();
             return GLib.SOURCE_CONTINUE;

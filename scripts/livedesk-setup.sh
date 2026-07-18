@@ -97,7 +97,7 @@ patch_background_js() {
     return 1
   }
 
-  grep -q "this._container.set_child_below_sibling(backgroundActor, null);" "$file" || {
+  grep -q "let changeSignalId = background.connect('bg-changed'" "$file" || {
     warn "Could not find BackgroundManager._createBackgroundActor patch point."
     return 1
   }
@@ -106,10 +106,8 @@ patch_background_js() {
     sed -i "/const Params = imports.misc.params;/a const LivedeskBackground = imports.ui.livedeskBackground;" "$file"
   fi
 
-  if ! grep -q "LivedeskBackground.attachToBackgroundManager" "$file"; then
-    sed -i "/this._container.set_child_below_sibling(backgroundActor, null);/a \\
-        LivedeskBackground.attachToBackgroundManager(this, backgroundActor);" "$file"
-  fi
+  sed -i "/LivedeskBackground.attachToBackgroundManager(this, backgroundActor);/d" "$file"
+  sed -i "/let changeSignalId = background.connect('bg-changed'/i\\        LivedeskBackground.attachToBackgroundManager(this, backgroundActor);" "$file"
 }
 
 install_native_shell_overlay() {
