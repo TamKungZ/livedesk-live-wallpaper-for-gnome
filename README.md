@@ -77,13 +77,16 @@ sudo tee /etc/yum.repos.d/tamkungz.repo >/dev/null <<'EOF'
 name=TamKungZ_ Packages
 baseurl=https://packages.tamkungz.me/rpm/$basearch
 enabled=1
-gpgcheck=1
+gpgcheck=0
 repo_gpgcheck=1
 gpgkey=https://packages.tamkungz.me/gpg.key
 EOF
 sudo dnf install livedesk
 livedesk-setup
 ```
+
+The RPM repository metadata is signed. RPM package files also include detached
+`.asc` signatures in the package directory.
 
 Log out and back in once, then open `livedesk`.
 
