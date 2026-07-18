@@ -13,6 +13,8 @@
 //! fullscreen" or "the screen locked".
 
 use crate::pipeline::MonitorPipeline;
+use anyhow::bail;
+use dbus::blocking::stdintf::org_freedesktop_dbus::RequestNameReply;
 use dbus::blocking::Connection;
 use dbus_crossroads::{Context, Crossroads, MethodErr};
 use std::collections::HashMap;
@@ -93,7 +95,13 @@ impl WallpaperService {
 /// normal operation).
 pub fn serve(service: WallpaperService) -> anyhow::Result<()> {
     let conn = Connection::new_session()?;
-    conn.request_name("me.tamkungz.Livedesk", false, true, false)?;
+    let name_reply = conn.request_name("me.tamkungz.Livedesk", false, false, true)?;
+    match name_reply {
+        RequestNameReply::PrimaryOwner | RequestNameReply::AlreadyOwner => {}
+        RequestNameReply::Exists | RequestNameReply::InQueue => {
+            bail!("another livedesk-daemon already owns me.tamkungz.Livedesk");
+        }
+    }
 
     let mut cr = Crossroads::new();
 

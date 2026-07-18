@@ -12,12 +12,16 @@ use gstreamer::prelude::*;
 use gstreamer_app as gst_app;
 use gstreamer_video as gst_video;
 use gstreamer_video::prelude::VideoFrameExt;
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, Mutex,
+};
 
 pub struct MonitorPipeline {
     pub monitor: String,
     pipeline: gst::Element,
     _frame_buf: Arc<Mutex<Option<FrameBuffer>>>,
+    shutdown: Arc<AtomicBool>,
     width: u32,
     height: u32,
 }
@@ -104,8 +108,17 @@ impl MonitorPipeline {
             .ok_or_else(|| anyhow!("pipeline has no bus"))?;
         let playbin_for_bus = playbin.clone();
         let monitor_name = monitor.to_string();
+        let shutdown = Arc::new(AtomicBool::new(false));
+        let shutdown_for_bus = shutdown.clone();
         std::thread::spawn(move || {
-            for msg in bus.iter_timed(gst::ClockTime::NONE) {
+            while !shutdown_for_bus.load(Ordering::Acquire) {
+                let Some(msg) = bus.timed_pop(gst::ClockTime::from_mseconds(200)) else {
+                    continue;
+                };
+                if shutdown_for_bus.load(Ordering::Acquire) {
+                    break;
+                }
+
                 use gst::MessageView;
                 match msg.view() {
                     MessageView::Eos(_) => {
@@ -127,12 +140,15 @@ impl MonitorPipeline {
                     _ => {}
                 }
             }
+
+            let _ = playbin_for_bus.set_state(gst::State::Null);
         });
 
         Ok(Self {
             monitor: monitor.to_string(),
             pipeline: playbin,
             _frame_buf: frame_buf,
+            shutdown,
             width,
             height,
         })
@@ -141,6 +157,7 @@ impl MonitorPipeline {
     pub fn set_source(&self, uri: &str) -> Result<()> {
         println!("[{}] source set to {uri}", self.monitor);
         self.pipeline.set_state(gst::State::Null)?;
+        let _ = self.pipeline.state(gst::ClockTime::from_mseconds(500));
         self.pipeline.set_property("uri", uri);
         self.pipeline.set_state(gst::State::Playing)?;
         Ok(())
@@ -184,6 +201,8 @@ impl MonitorPipeline {
 
 impl Drop for MonitorPipeline {
     fn drop(&mut self) {
+        self.shutdown.store(true, Ordering::Release);
         let _ = self.pipeline.set_state(gst::State::Null);
+        let _ = self.pipeline.state(gst::ClockTime::from_mseconds(500));
     }
 }

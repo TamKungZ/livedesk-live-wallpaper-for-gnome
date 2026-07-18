@@ -20,6 +20,7 @@
 - Reduced overview flicker by making non-desktop background actors passive frame readers instead of daemon controllers.
 - Added a Mutter-native roadmap for replacing the Shell actor overlay with a real background content renderer.
 - Added Linux x64 and arm64 release build/publish coverage for Debian and RPM packages.
+- Fixed stale daemon pipelines continuing to write frames after wallpaper source or monitor pipeline changes.
 
 ## 0.1.3
 
