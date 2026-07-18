@@ -64,6 +64,10 @@ Log out and back in once, then open:
 livedesk
 ```
 
+Before logging out, read [Emergency Recovery](#emergency-recovery). Native setup
+changes how GNOME Shell loads JavaScript on the next login, so keep the recovery
+commands available on another device or write them down.
+
 ### Fedora/RHEL-Like
 
 ```bash
@@ -82,6 +86,9 @@ livedesk-setup
 ```
 
 Log out and back in once, then open `livedesk`.
+
+Before logging out, read [Emergency Recovery](#emergency-recovery). Native setup
+changes how GNOME Shell loads JavaScript on the next login.
 
 ### From Source
 
@@ -103,6 +110,8 @@ livedesk-setup
 ```
 
 Log out and back in once, then open `livedesk`.
+
+Before logging out, read [Emergency Recovery](#emergency-recovery).
 
 ## Use
 
@@ -139,6 +148,39 @@ It also writes:
 
 That environment file tells GNOME Shell to load the native Livedesk background
 module on the next login. This is why logging out and back in once is required.
+
+## Emergency Recovery
+
+If GNOME shows `Oh no! Something has gone wrong.` after setup, remove the native
+overlay from a TTY and restart the display manager.
+
+Open a TTY:
+
+```text
+Ctrl+Alt+F3
+```
+
+Log in with your normal username and password, then run:
+
+```bash
+rm -f ~/.config/environment.d/90-livedesk-gnome-shell.conf
+rm -rf ~/.local/share/livedesk/gnome-shell-js
+sudo systemctl restart gdm
+```
+
+If your distro does not use GDM, reboot instead:
+
+```bash
+sudo reboot
+```
+
+Return to the graphical session with:
+
+```text
+Ctrl+Alt+F1
+```
+
+On some systems the graphical session is on `Ctrl+Alt+F2` instead.
 
 ## Troubleshooting
 
@@ -220,4 +262,12 @@ source and loads the background renderer through a GNOME Shell JS overlay.
 
 `livedesk-uninstall` still removes the old extension directories so users
 upgrading from 0.1.x can clean up stale files.
+
+If an old or broken native test build prevents login, use the emergency recovery
+steps above. The key rollback is:
+
+```bash
+rm -f ~/.config/environment.d/90-livedesk-gnome-shell.conf
+rm -rf ~/.local/share/livedesk/gnome-shell-js
+```
 </details>

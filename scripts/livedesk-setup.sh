@@ -173,6 +173,26 @@ start_daemon() {
   fi
 }
 
+print_recovery_notice() {
+  cat <<EOF
+
+Important recovery note:
+
+Native setup changes how GNOME Shell loads JavaScript on the next login.
+Before logging out, keep these commands available. If GNOME shows
+"Oh no! Something has gone wrong.", press Ctrl+Alt+F3, log in, and run:
+
+  rm -f ~/.config/environment.d/90-livedesk-gnome-shell.conf
+  rm -rf ~/.local/share/livedesk/gnome-shell-js
+  sudo systemctl restart gdm
+
+If your distro does not use GDM, run:
+
+  sudo reboot
+
+EOF
+}
+
 case "${1:-}" in
   --check-native)
     check_native
@@ -208,3 +228,5 @@ Pick a video in Livedesk. The app will write that video URI to:
   org.gnome.desktop.background picture-uri
 
 EOF
+
+print_recovery_notice

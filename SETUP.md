@@ -33,6 +33,9 @@ Log out and back in once, then open:
 livedesk
 ```
 
+Before logging out, read [Emergency Recovery](#emergency-recovery). Native setup
+changes how GNOME Shell loads JavaScript on the next login.
+
 ## RPM Install
 
 On Fedora/RHEL-like distributions:
@@ -53,6 +56,8 @@ livedesk-setup
 ```
 
 Log out and back in once, then open `livedesk`.
+
+Before logging out, read [Emergency Recovery](#emergency-recovery).
 
 ## Source Install
 
@@ -78,6 +83,8 @@ Log out and back in once, then open:
 ```bash
 livedesk
 ```
+
+Before logging out, read [Emergency Recovery](#emergency-recovery).
 
 ## Use
 
@@ -124,6 +131,39 @@ Check GNOME Shell logs:
 ```bash
 journalctl --user -b /usr/bin/gnome-shell -n 160 --no-pager | grep -i livedesk
 ```
+
+## Emergency Recovery
+
+If GNOME shows `Oh no! Something has gone wrong.` after setup, remove the native
+overlay from a TTY and restart the display manager.
+
+Open a TTY:
+
+```text
+Ctrl+Alt+F3
+```
+
+Log in with your normal username and password, then run:
+
+```bash
+rm -f ~/.config/environment.d/90-livedesk-gnome-shell.conf
+rm -rf ~/.local/share/livedesk/gnome-shell-js
+sudo systemctl restart gdm
+```
+
+If your distro does not use GDM, reboot instead:
+
+```bash
+sudo reboot
+```
+
+Return to the graphical session with:
+
+```text
+Ctrl+Alt+F1
+```
+
+On some systems the graphical session is on `Ctrl+Alt+F2` instead.
 
 ## Uninstall
 
