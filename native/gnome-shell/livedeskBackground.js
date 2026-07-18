@@ -246,15 +246,11 @@ class LivedeskNativeBackground {
 
         this.actor.show();
 
-        if (!this._controlsDaemon) {
-            this._reuseLastFrame();
-            return;
-        }
-
         if (!this._proxy)
             this._connectDBus();
 
-        this._applySettingsToDaemon(uri);
+        if (this._controlsDaemon)
+            this._applySettingsToDaemon(uri);
         this._restartPolling();
     }
 
@@ -314,7 +310,8 @@ class LivedeskNativeBackground {
                 return GLib.SOURCE_REMOVE;
 
             if (this._connectDBus()) {
-                this._applySettingsToDaemon(this._backgroundUri());
+                if (this._controlsDaemon)
+                    this._applySettingsToDaemon(this._backgroundUri());
                 return GLib.SOURCE_REMOVE;
             }
 

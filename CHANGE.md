@@ -20,7 +20,6 @@
 - Reduced overview flicker by making non-desktop background actors passive frame readers instead of daemon controllers.
 - Added a Mutter-native roadmap for replacing the Shell actor overlay with a real background content renderer.
 - Added Linux x64 and arm64 release build/publish coverage for Debian and RPM packages.
-- Changed overview/workspace preview backgrounds to snapshot-only readers to avoid stalls when the Super overview is toggled repeatedly.
 
 ## 0.1.3
 
