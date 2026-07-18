@@ -250,14 +250,15 @@ jobs:
           mkdir -p apt/pool/main/l/livedesk
           mkdir -p apt/dists/stable/main/binary-amd64
           mkdir -p apt/dists/stable/main/binary-arm64
-          rm -rf apps/livedesk
           mkdir -p apps/livedesk
 
-          cat > apps/livedesk/README.md <<'EOF'
+          if [ ! -f apps/livedesk/README.md ]; then
+            cat > apps/livedesk/README.md <<'EOF'
           # Livedesk
 
           Livedesk is a live video wallpaper app for GNOME. It includes a GNOME Shell native background patch, a GStreamer daemon, and a GTK/Libadwaita configuration app.
           EOF
+          fi
 
           find "$WORK_DIR"/artifacts -path '*/livedesk_*.deb' -exec cp {} apt/pool/main/l/livedesk/ \;
           find "$WORK_DIR"/artifacts -path '*/livedesk_*.deb.asc' -exec cp {} apt/pool/main/l/livedesk/ \; 2>/dev/null || true
