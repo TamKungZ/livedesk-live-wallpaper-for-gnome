@@ -65,15 +65,9 @@ const _monitorStates = new Map();
 function _monitorState(name) {
     if (!_monitorStates.has(name)) {
         _monitorStates.set(name, {
-            actors: new Set(),
             content: null,
             framePath: '',
-            intervalMs: 0,
             lastSeq: -1,
-            mappedFile: null,
-            proxy: null,
-            retryTimeoutId: 0,
-            timeoutId: 0,
             uri: '',
         });
     }
@@ -140,91 +134,6 @@ function _isVideoUri(uri) {
         lower.endsWith('.ogv');
 }
 
-function _stopMonitorPolling(state) {
-    if (state.timeoutId) {
-        GLib.source_remove(state.timeoutId);
-        state.timeoutId = 0;
-    }
-
-    state.intervalMs = 0;
-    state.mappedFile = null;
-}
-
-function _ensureMonitorMapped(state) {
-    if (state.mappedFile)
-        return true;
-
-    if (!state.framePath)
-        return false;
-
-    try {
-        state.mappedFile = GLib.MappedFile.new(state.framePath, false);
-        return true;
-    } catch (_) {
-        return false;
-    }
-}
-
-function _setMonitorContent(state, image) {
-    state.content = image;
-
-    const staleActors = [];
-    for (const actor of state.actors) {
-        try {
-            actor.set_content(image);
-        } catch (_) {
-            staleActors.push(actor);
-        }
-    }
-
-    for (const actor of staleActors)
-        state.actors.delete(actor);
-}
-
-function _tickMonitorState(state) {
-    if (!state.actors.size || !_ensureMonitorMapped(state))
-        return;
-
-    const bytes = state.mappedFile.get_bytes().toArray();
-    if (bytes.length < HEADER_LEN)
-        return;
-
-    const magic = String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3]);
-    if (magic !== FRAME_MAGIC)
-        return;
-
-    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-    const width = view.getUint32(4, true);
-    const height = view.getUint32(8, true);
-    const expectedLen = HEADER_LEN + width * height * 4;
-    if (width === 0 || height === 0 || bytes.length < expectedLen)
-        return;
-
-    const seq1 = view.getBigUint64(16, true);
-    if (seq1 % 2n !== 0n)
-        return;
-    if (seq1 === BigInt(state.lastSeq))
-        return;
-
-    const pixels = bytes.subarray(HEADER_LEN, expectedLen);
-    const seq2 = view.getBigUint64(16, true);
-    if (seq1 !== seq2)
-        return;
-
-    const image = new Clutter.Image();
-    const ok = image.set_data(
-        pixels,
-        Cogl.PixelFormat.RGBA_8888,
-        width,
-        height,
-        width * 4);
-
-    if (ok) {
-        state.lastSeq = Number(seq1);
-        _setMonitorContent(state, image);
-    }
-}
-
 class LivedeskNativeBackground {
     constructor(bgManager, backgroundActor) {
         this._bgManager = bgManager;
@@ -240,6 +149,12 @@ class LivedeskNativeBackground {
         this._backgroundSettings = _settings(BACKGROUND_SCHEMA);
         this._interfaceSettings = _settings(INTERFACE_SCHEMA);
         this._settingsSignalIds = [];
+        this._retryTimeoutId = 0;
+        this._timeoutId = 0;
+        this._mappedFile = null;
+        this._framePath = '';
+        this._lastGoodSeq = -1;
+        this._proxy = null;
         this._destroyed = false;
         this.actor = null;
 
@@ -283,7 +198,6 @@ class LivedeskNativeBackground {
 
         this._container.add_child(this.actor);
         this._container.set_child_above_sibling(this.actor, this._backgroundActor);
-        this._monitorState.actors.add(this.actor);
         this._reuseLastFrame();
 
         this._backgroundActor.connect('destroy', () => this.destroy());
@@ -294,6 +208,7 @@ class LivedeskNativeBackground {
             return;
 
         this.actor.set_content(this._monitorState.content);
+        this._lastGoodSeq = this._monitorState.lastSeq;
     }
 
     _connectSettings() {
@@ -322,25 +237,21 @@ class LivedeskNativeBackground {
         const uri = this._backgroundUri();
         if (!_isVideoUri(uri)) {
             this.actor.hide();
+            this._stopPolling();
 
-            if (this._controlsDaemon) {
-                this._stopPolling();
-                if (this._monitorState.proxy)
-                    this._monitorState.proxy.PauseRemote(this._monitorName);
-            }
+            if (this._controlsDaemon && this._proxy)
+                this._proxy.PauseRemote(this._monitorName);
             return;
         }
 
         this.actor.show();
-        this._reuseLastFrame();
 
-        if (this._controlsDaemon && !this._monitorState.proxy)
+        if (!this._proxy)
             this._connectDBus();
 
         if (this._controlsDaemon)
             this._applySettingsToDaemon(uri);
-        if (this._monitorState.framePath)
-            this._restartPolling();
+        this._restartPolling();
     }
 
     _backgroundUri() {
@@ -361,27 +272,25 @@ class LivedeskNativeBackground {
             return false;
 
         try {
-            this._monitorState.proxy =
-                new WallpaperProxy(Gio.DBus.session, DBUS_NAME, DBUS_PATH);
-            if (!this._monitorState.proxy.get_name_owner())
+            this._proxy = new WallpaperProxy(Gio.DBus.session, DBUS_NAME, DBUS_PATH);
+            if (!this._proxy.get_name_owner())
                 throw new Error('daemon D-Bus name has no owner yet');
 
             if (this._monitorState.framePath) {
+                this._framePath = this._monitorState.framePath;
                 this._restartPolling();
             }
 
-            this._monitorState.proxy.FramePathRemote(this._monitorName, ([path]) => {
+            this._proxy.FramePathRemote(this._monitorName, ([path]) => {
                 if (this._destroyed)
                     return;
-                if (this._monitorState.framePath !== path) {
-                    this._monitorState.framePath = path;
-                    this._monitorState.mappedFile = null;
-                }
+                this._framePath = path;
+                this._monitorState.framePath = path;
                 this._restartPolling();
             });
             return true;
         } catch (e) {
-            this._monitorState.proxy = null;
+            this._proxy = null;
             if (this._controlsDaemon) {
                 logError(e, 'livedesk-native: could not connect to daemon over D-Bus');
                 this._maybeSpawnDaemon();
@@ -392,23 +301,22 @@ class LivedeskNativeBackground {
     }
 
     _scheduleReconnect() {
-        if (!this._controlsDaemon || this._monitorState.retryTimeoutId || this._destroyed)
+        if (this._retryTimeoutId || this._destroyed)
             return;
 
-        this._monitorState.retryTimeoutId =
-            GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 2, () => {
-                this._monitorState.retryTimeoutId = 0;
-                if (this._destroyed || !_isVideoUri(this._backgroundUri()))
-                    return GLib.SOURCE_REMOVE;
-
-                if (this._connectDBus()) {
-                    if (this._controlsDaemon)
-                        this._applySettingsToDaemon(this._backgroundUri());
-                    return GLib.SOURCE_REMOVE;
-                }
-
+        this._retryTimeoutId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 2, () => {
+            this._retryTimeoutId = 0;
+            if (this._destroyed || !_isVideoUri(this._backgroundUri()))
                 return GLib.SOURCE_REMOVE;
-            });
+
+            if (this._connectDBus()) {
+                if (this._controlsDaemon)
+                    this._applySettingsToDaemon(this._backgroundUri());
+                return GLib.SOURCE_REMOVE;
+            }
+
+            return GLib.SOURCE_REMOVE;
+        });
     }
 
     _maybeSpawnDaemon() {
@@ -438,7 +346,7 @@ class LivedeskNativeBackground {
     }
 
     _applySettingsToDaemon(uri) {
-        if (!this._monitorState.proxy || this._destroyed)
+        if (!this._proxy || this._destroyed)
             return;
 
         const muted = _settingBool(this._settings, 'muted', true);
@@ -448,44 +356,90 @@ class LivedeskNativeBackground {
 
         if (uri) {
             this._monitorState.uri = uri;
-            this._monitorState.proxy.SetMonitorSourceRemote(this._monitorName, uri, width, height);
+            this._proxy.SetMonitorSourceRemote(this._monitorName, uri, width, height);
         }
-        this._monitorState.proxy.SetMutedRemote(this._monitorName, muted);
+        this._proxy.SetMutedRemote(this._monitorName, muted);
     }
 
     _restartPolling() {
-        const state = this._monitorState;
+        this._stopPolling();
 
-        if (!this.actor || !state.framePath)
+        if (!this.actor || !this._framePath)
             return;
 
         const fps = Math.max(1, _settingInt(this._settings, 'frame-rate', DEFAULT_FPS));
         const intervalMs = Math.max(16, Math.round(1000 / fps));
-
-        if (state.timeoutId && state.intervalMs === intervalMs) {
-            _tickMonitorState(state);
-            return;
-        }
-
-        _stopMonitorPolling(state);
-
-        state.intervalMs = intervalMs;
-        _tickMonitorState(state);
-        state.timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, intervalMs, () => {
-            if (!state.actors.size) {
-                state.timeoutId = 0;
-                state.intervalMs = 0;
-                state.mappedFile = null;
-                return GLib.SOURCE_REMOVE;
-            }
-
-            _tickMonitorState(state);
+        this._tick();
+        this._timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, intervalMs, () => {
+            this._tick();
             return GLib.SOURCE_CONTINUE;
         });
     }
 
     _stopPolling() {
-        _stopMonitorPolling(this._monitorState);
+        if (this._timeoutId) {
+            GLib.source_remove(this._timeoutId);
+            this._timeoutId = 0;
+        }
+        this._mappedFile = null;
+    }
+
+    _ensureMapped() {
+        if (this._mappedFile)
+            return true;
+
+        try {
+            this._mappedFile = GLib.MappedFile.new(this._framePath, false);
+            return true;
+        } catch (_) {
+            return false;
+        }
+    }
+
+    _tick() {
+        if (!this.actor || !this._ensureMapped())
+            return;
+
+        const bytes = this._mappedFile.get_bytes().toArray();
+        if (bytes.length < HEADER_LEN)
+            return;
+
+        const magic = String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3]);
+        if (magic !== FRAME_MAGIC)
+            return;
+
+        const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+        const width = view.getUint32(4, true);
+        const height = view.getUint32(8, true);
+        const expectedLen = HEADER_LEN + width * height * 4;
+        if (width === 0 || height === 0 || bytes.length < expectedLen)
+            return;
+
+        const seq1 = view.getBigUint64(16, true);
+        if (seq1 % 2n !== 0n)
+            return;
+        if (seq1 === BigInt(this._lastGoodSeq))
+            return;
+
+        const pixels = bytes.subarray(HEADER_LEN, expectedLen);
+        const seq2 = view.getBigUint64(16, true);
+        if (seq1 !== seq2)
+            return;
+
+        const image = new Clutter.Image();
+        const ok = image.set_data(
+            pixels,
+            Cogl.PixelFormat.RGBA_8888,
+            width,
+            height,
+            width * 4);
+
+        if (ok) {
+            this.actor.set_content(image);
+            this._lastGoodSeq = Number(seq1);
+            this._monitorState.content = image;
+            this._monitorState.lastSeq = this._lastGoodSeq;
+        }
     }
 
     destroy() {
@@ -494,16 +448,12 @@ class LivedeskNativeBackground {
 
         this._destroyed = true;
 
-        if (this._controlsDaemon && this._monitorState.retryTimeoutId) {
-            GLib.source_remove(this._monitorState.retryTimeoutId);
-            this._monitorState.retryTimeoutId = 0;
+        if (this._retryTimeoutId) {
+            GLib.source_remove(this._retryTimeoutId);
+            this._retryTimeoutId = 0;
         }
 
-        if (this.actor)
-            this._monitorState.actors.delete(this.actor);
-
-        if (!this._monitorState.actors.size)
-            this._stopPolling();
+        this._stopPolling();
 
         for (const [settings, signalId] of this._settingsSignalIds) {
             settings.disconnect(signalId);
@@ -515,6 +465,7 @@ class LivedeskNativeBackground {
             this.actor = null;
         }
 
+        this._proxy = null;
         this._settings = null;
         this._backgroundSettings = null;
         this._interfaceSettings = null;

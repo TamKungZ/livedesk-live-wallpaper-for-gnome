@@ -18,7 +18,6 @@
 - Added a separate Ayatana/AppIndicator tray helper with quick app, play, pause, restore, and log actions.
 - Fixed black GNOME/Zorin overview backgrounds by attaching the native live actor to workspace preview backgrounds as well as the desktop background.
 - Reduced overview flicker by making non-desktop background actors passive frame readers instead of daemon controllers.
-- Reduced GNOME/Zorin overview toggle stutter by sharing one frame poller and D-Bus proxy per monitor across desktop and overview background actors.
 - Added a Mutter-native roadmap for replacing the Shell actor overlay with a real background content renderer.
 - Added Linux x64 and arm64 release build/publish coverage for Debian and RPM packages.
 
