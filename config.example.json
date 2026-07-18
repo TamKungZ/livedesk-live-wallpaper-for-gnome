@@ -1,7 +1,16 @@
 {
+  "library_dir": "/home/YOUR_USER/Videos/Livedesk",
+  "library": [],
+  "titles": {},
+  "selected": "",
+  "previous_background_uri": "",
+  "previous_background_uri_dark": "",
+  "muted": true,
+  "service_mode_disabled": false,
+  "autostart_disabled": false,
   "monitors": {
     "monitor-0": {
-      "uri": "file:///home/YOUR_USER/Videos/wallpaper.webm",
+      "uri": "",
       "width": 1920,
       "height": 1080
     }

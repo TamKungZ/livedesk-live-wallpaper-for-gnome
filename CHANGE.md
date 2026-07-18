@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## 1.0.0
+
+- Replaced the GNOME Shell extension runtime with a GNOME Shell native background overlay.
+- Changed video selection to use GNOME's own `org.gnome.desktop.background picture-uri` and `picture-uri-dark` settings as the wallpaper source.
+- Added `livedesk-setup` native overlay installation through `GNOME_SHELL_JS`, with setup checks and user-session daemon startup.
+- Added a GNOME Shell native background module that detects video wallpaper URIs, starts the daemon, and reads frames from shared memory.
+- Added `SetMonitorSource` D-Bus control so the daemon can create per-monitor frame buffers at the real monitor resolution.
+- Moved Livedesk playback preferences into a standalone GSettings schema under `data/schemas`.
+- Removed the 0.1.x GNOME Shell extension sources and extension zip builder from the active code path.
+- Updated Debian/RPM packaging to install the native background files and schema instead of extension variants.
+- Rewrote user documentation around the native wallpaper flow and moved 0.1.x extension notes into legacy documentation.
+
 ## 0.1.3
 
 - Fixed the app startup bootstrap so disabled service mode and autostart settings are not re-enabled when Livedesk is opened again.

@@ -1,0 +1,29 @@
+diff --git a/js/js-resources.gresource.xml b/js/js-resources.gresource.xml
+index 0000000000..0000000000 100644
+--- a/js/js-resources.gresource.xml
++++ b/js/js-resources.gresource.xml
+@@ -1,5 +1,6 @@
+     <file>ui/background.js</file>
++    <file>ui/livedeskBackground.js</file>
+ 
+diff --git a/js/ui/background.js b/js/ui/background.js
+index 0000000000..0000000000 100644
+--- a/js/ui/background.js
++++ b/js/ui/background.js
+@@ -102,6 +102,7 @@ const Signals = imports.misc.signals;
+ const LoginManager = imports.misc.loginManager;
+ const Main = imports.ui.main;
+ const Params = imports.misc.params;
++const LivedeskBackground = imports.ui.livedeskBackground;
+ 
+ Gio._promisify(Gio.File.prototype, 'query_info_async');
+ 
+@@ -817,6 +818,8 @@ var BackgroundManager = class BackgroundManager extends Signals.EventEmitter {
+             this._container.set_child_below_sibling(backgroundActor, null);
+         }
+ 
++        LivedeskBackground.attachToBackgroundManager(this, backgroundActor);
++
+         let changeSignalId = background.connect('bg-changed', () => {
+             background.disconnect(changeSignalId);
+             changeSignalId = null;

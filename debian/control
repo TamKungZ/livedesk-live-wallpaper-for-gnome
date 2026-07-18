@@ -33,7 +33,6 @@ Depends:
 Recommends:
  totem | ffmpeg
 Description: Live video wallpaper for GNOME
- Livedesk renders a looping video as the GNOME desktop background via a
- GNOME Shell extension and a native GStreamer daemon. It includes a GTK
- settings app, a systemd user service, and GNOME Shell extension variants
- for GNOME 40-44 and GNOME 45-51.
+ Livedesk makes GNOME's own background URI accept video files via a
+ GNOME Shell native background patch and a GStreamer daemon. It includes
+ a GTK settings app and a systemd user service.

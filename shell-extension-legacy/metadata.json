@@ -1,9 +1,0 @@
-{
-  "uuid": "livedesk@me.tamkungz",
-  "name": "Livedesk - Live Wallpaper for GNOME",
-  "description": "Renders a looping video as the real desktop background actor instead of opening a hidden window. Talks to the Livedesk daemon over D-Bus/shared-memory for decoded frames.",
-  "shell-version": ["40", "41", "42", "43", "44"],
-  "url": "https://github.com/TamKungZ/livedesk-live-wallpaper-for-gnome",
-  "settings-schema": "me.tamkungz.Livedesk",
-  "version": 4
-}

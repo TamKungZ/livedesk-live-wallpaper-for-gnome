@@ -24,15 +24,10 @@ override_dh_auto_install:
 	install -D -m 644 data/icons/hicolor/256x256/apps/me.tamkungz.Livedesk.png debian/livedesk/usr/share/icons/hicolor/256x256/apps/me.tamkungz.Livedesk.png
 	install -D -m 644 data/icons/hicolor/scalable/apps/me.tamkungz.Livedesk.svg debian/livedesk/usr/share/icons/hicolor/scalable/apps/me.tamkungz.Livedesk.svg
 	install -D -m 644 livedesk-daemon.service debian/livedesk/usr/lib/systemd/user/livedesk-daemon.service
-	install -d debian/livedesk/usr/share/livedesk/extension-gnome40-44
-	install -d debian/livedesk/usr/share/livedesk/extension-gnome45-51
-	install -d debian/livedesk/usr/share/gnome-shell/extensions/livedesk@me.tamkungz
-	cp -a shell-extension-legacy/. debian/livedesk/usr/share/livedesk/extension-gnome40-44/
-	cp -a shell-extension/. debian/livedesk/usr/share/livedesk/extension-gnome45-51/
-	cp -a shell-extension/. debian/livedesk/usr/share/gnome-shell/extensions/livedesk@me.tamkungz/
-	glib-compile-schemas --strict debian/livedesk/usr/share/livedesk/extension-gnome40-44/schemas
-	glib-compile-schemas --strict debian/livedesk/usr/share/livedesk/extension-gnome45-51/schemas
-	glib-compile-schemas --strict debian/livedesk/usr/share/gnome-shell/extensions/livedesk@me.tamkungz/schemas
+	install -D -m 644 native/gnome-shell/livedeskBackground.js debian/livedesk/usr/share/livedesk/native/gnome-shell/livedeskBackground.js
+	install -D -m 644 native/gnome-shell/README.md debian/livedesk/usr/share/livedesk/native/gnome-shell/README.md
+	install -D -m 644 data/schemas/me.tamkungz.Livedesk.gschema.xml debian/livedesk/usr/share/glib-2.0/schemas/me.tamkungz.Livedesk.gschema.xml
+	glib-compile-schemas --strict debian/livedesk/usr/share/glib-2.0/schemas
 	install -D -m 644 README.md debian/livedesk/usr/share/doc/livedesk/README.md
 	install -D -m 644 SETUP.md debian/livedesk/usr/share/doc/livedesk/SETUP.md
 	install -D -m 644 CHANGE.md debian/livedesk/usr/share/doc/livedesk/CHANGE.md

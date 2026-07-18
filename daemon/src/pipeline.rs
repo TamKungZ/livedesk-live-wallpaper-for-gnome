@@ -62,8 +62,8 @@ impl MonitorPipeline {
                     let sample = sink.pull_sample().map_err(|_| gst::FlowError::Eos)?;
                     let buffer = sample.buffer().ok_or(gst::FlowError::Error)?;
                     let caps = sample.caps().ok_or(gst::FlowError::Error)?;
-                    let info = gst_video::VideoInfo::from_caps(caps)
-                        .map_err(|_| gst::FlowError::Error)?;
+                    let info =
+                        gst_video::VideoInfo::from_caps(caps).map_err(|_| gst::FlowError::Error)?;
                     let frame = gst_video::VideoFrameRef::from_buffer_ref_readable(buffer, &info)
                         .map_err(|_| gst::FlowError::Error)?;
 
@@ -99,7 +99,9 @@ impl MonitorPipeline {
         // Muted by default: a wallpaper should be silent unless asked.
         playbin.set_property("volume", 0.0f64);
 
-        let bus = playbin.bus().ok_or_else(|| anyhow!("pipeline has no bus"))?;
+        let bus = playbin
+            .bus()
+            .ok_or_else(|| anyhow!("pipeline has no bus"))?;
         let playbin_for_bus = playbin.clone();
         let monitor_name = monitor.to_string();
         std::thread::spawn(move || {
@@ -160,8 +162,7 @@ impl MonitorPipeline {
     }
 
     pub fn set_muted(&self, muted: bool) {
-        self.pipeline
-            .set_property("mute", muted);
+        self.pipeline.set_property("mute", muted);
     }
 
     /// Re-seek to the start. The bus watch already does this on EOS, but

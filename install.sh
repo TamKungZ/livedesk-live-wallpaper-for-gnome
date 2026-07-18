@@ -1,41 +1,23 @@
 #!/usr/bin/env bash
-# Installs the Phase 1 prototype:
+# Installs Livedesk:
 #   1. builds livedesk-daemon (release) and copies it to ~/.local/bin
 #   2. installs the Livedesk GTK app into ~/.local/bin and applications
-#   3. installs the GNOME Shell extension into ~/.local/share/gnome-shell/extensions
-#   4. compiles its GSettings schema
-#   5. installs (but does not enable) a systemd --user unit for the daemon
+#   3. installs the GNOME Shell native background patch helper files
+#   4. installs and compiles the Livedesk GSettings schema
+#   5. installs a systemd --user unit for the daemon
 #
-# Opening `livedesk` after install will try to start the user service and
-# enable the extension automatically. Wayland may still require a full
-# session restart before GNOME Shell can discover a newly-installed extension.
+# Opening `livedesk` after install will try to start the user service. Run
+# `livedesk-setup` once, then log out and back in so GNOME Shell starts with
+# the native background overlay.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-EXT_UUID="livedesk@me.tamkungz"
-EXT_DEST="$HOME/.local/share/gnome-shell/extensions/$EXT_UUID"
 BIN_DEST="$HOME/.local/bin"
 APP_DEST="$HOME/.local/share/applications"
 SYSTEMD_DEST="$HOME/.config/systemd/user"
-
-detect_extension_source() {
-  local version major
-
-  if ! command -v gnome-shell >/dev/null; then
-    echo "$SCRIPT_DIR/shell-extension"
-    return
-  fi
-
-  version="$(gnome-shell --version | awk '{ print $NF }')"
-  major="${version%%.*}"
-
-  if [ "$major" -ge 40 ] && [ "$major" -le 44 ]; then
-    echo "$SCRIPT_DIR/shell-extension-legacy"
-  else
-    echo "$SCRIPT_DIR/shell-extension"
-  fi
-}
+DATA_DEST="$HOME/.local/share/livedesk"
+SCHEMA_DEST="$HOME/.local/share/glib-2.0/schemas"
 
 echo "==> Checking build dependencies (rustc/cargo, pkg-config, GStreamer dev headers, GJS)"
 for cmd in cargo rustc pkg-config gjs; do
@@ -65,14 +47,15 @@ install -m 644 "$SCRIPT_DIR/data/icons/hicolor/256x256/apps/me.tamkungz.Livedesk
 install -m 644 "$SCRIPT_DIR/data/icons/hicolor/scalable/apps/me.tamkungz.Livedesk.svg" "$HOME/.local/share/icons/hicolor/scalable/apps/me.tamkungz.Livedesk.svg"
 rm -f "$APP_DEST/me.tamkungz.Livedesk.desktop"
 
-echo "==> Installing GNOME Shell extension to $EXT_DEST"
-EXT_SOURCE="$(detect_extension_source)"
-mkdir -p "$EXT_DEST"
-cp -r "$EXT_SOURCE/"* "$EXT_DEST/"
-echo "    Installed extension variant from $EXT_SOURCE"
+echo "==> Installing native GNOME Shell integration files"
+mkdir -p "$DATA_DEST/native/gnome-shell"
+install -m 644 "$SCRIPT_DIR/native/gnome-shell/livedeskBackground.js" "$DATA_DEST/native/gnome-shell/livedeskBackground.js"
+install -m 644 "$SCRIPT_DIR/native/gnome-shell/README.md" "$DATA_DEST/native/gnome-shell/README.md"
 
-echo "==> Compiling GSettings schema"
-glib-compile-schemas "$EXT_DEST/schemas"
+echo "==> Installing and compiling GSettings schema"
+mkdir -p "$SCHEMA_DEST"
+install -m 644 "$SCRIPT_DIR/data/schemas/me.tamkungz.Livedesk.gschema.xml" "$SCHEMA_DEST/me.tamkungz.Livedesk.gschema.xml"
+glib-compile-schemas "$SCHEMA_DEST"
 
 echo "==> Installing systemd --user unit (not enabled yet)"
 mkdir -p "$SYSTEMD_DEST"
@@ -92,16 +75,14 @@ cat <<'EOF'
 
 Done. Remaining steps:
 
-  1. Open Livedesk:
+  1. Install the native GNOME Shell background overlay:
+       livedesk-setup
+
+  2. Log out and back in once so GNOME Shell starts with the overlay.
+
+  3. Open Livedesk:
        livedesk
 
-  2. If GNOME does not see the extension yet, log out and back in.
-     On Wayland you'll usually need a full session restart for a newly-installed
-     extension to be picked up; on X11, Alt+F2 -> 'r' -> Enter reloads
-     GNOME Shell instead.
-
-  3. Pick your video and apply it to the daemon.
-
-The extension preferences remain available through GNOME's Extensions app,
-but the standalone Livedesk app is the primary UI.
+  4. Pick a video. Livedesk writes the video URI to GNOME's own
+     org.gnome.desktop.background picture-uri setting.
 EOF

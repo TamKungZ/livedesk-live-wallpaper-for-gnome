@@ -110,6 +110,5 @@ pub fn default_frame_path(monitor: &str) -> PathBuf {
     let base = std::env::var_os("XDG_RUNTIME_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("/tmp"));
-    base.join("livedesk")
-        .join(format!("{monitor}.frame"))
+    base.join("livedesk").join(format!("{monitor}.frame"))
 }

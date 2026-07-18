@@ -3,29 +3,17 @@
   <schema id="me.tamkungz.Livedesk"
           path="/me/tamkungz/Livedesk/">
 
-    <key name="video-uri" type="s">
-      <default>''</default>
-      <summary>Video file URI</summary>
-      <description>file:// URI of the video to loop as wallpaper on the primary monitor.</description>
-    </key>
-
     <key name="frame-rate" type="i">
       <range min="1" max="60"/>
       <default>30</default>
       <summary>Target frame rate</summary>
-      <description>How often (times per second) the extension polls the shared-memory frame buffer and updates the background actor.</description>
+      <description>How often GNOME Shell polls the shared-memory frame buffer and updates the background actor.</description>
     </key>
 
     <key name="muted" type="b">
       <default>true</default>
       <summary>Mute audio</summary>
       <description>Wallpapers are silent by default.</description>
-    </key>
-
-    <key name="wallpaper-enabled" type="b">
-      <default>false</default>
-      <summary>Show live wallpaper</summary>
-      <description>Whether the extension should place live wallpaper actors over the normal GNOME wallpaper.</description>
     </key>
 
     <key name="pause-on-fullscreen" type="b">

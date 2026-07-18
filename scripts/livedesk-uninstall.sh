@@ -5,6 +5,8 @@ EXT_UUID="livedesk@me.tamkungz"
 APP_ID="me.tamkungz.Livedesk"
 APP_DESKTOP="me.tamkungz.LivedeskApp.desktop"
 OLD_DESKTOP="me.tamkungz.Livedesk.desktop"
+APP_DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/livedesk"
+ENV_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/environment.d/90-livedesk-gnome-shell.conf"
 
 PURGE=0
 PURGE_LIBRARY=0
@@ -86,11 +88,6 @@ while [ "$#" -gt 0 ]; do
 done
 
 disable_user_services() {
-  if have gnome-extensions; then
-    info "Disabling GNOME extension"
-    gnome-extensions disable "$EXT_UUID" >/dev/null 2>&1 || true
-  fi
-
   if have systemctl; then
     info "Stopping user daemon"
     systemctl --user disable --now livedesk-daemon.service >/dev/null 2>&1 || true
@@ -108,6 +105,9 @@ remove_user_install() {
   rm -f "$HOME/.local/share/icons/hicolor/256x256/apps/$APP_ID.png"
   rm -f "$HOME/.local/share/icons/hicolor/scalable/apps/$APP_ID.svg"
   rm -f "$HOME/.config/systemd/user/livedesk-daemon.service"
+  rm -f "$ENV_FILE"
+  rm -rf "$APP_DATA_DIR/gnome-shell-js"
+  rm -rf "$APP_DATA_DIR/native"
   rm -rf "$HOME/.local/share/gnome-shell/extensions/$EXT_UUID"
 
   if have systemctl; then
@@ -179,7 +179,7 @@ cat <<EOF
 
 Livedesk uninstall finished.
 
-If GNOME Shell still shows the extension, log out and back in.
+Log out and back in if GNOME Shell was using the Livedesk native overlay.
 Your video library is kept at:
   $HOME/Videos/Livedesk
 

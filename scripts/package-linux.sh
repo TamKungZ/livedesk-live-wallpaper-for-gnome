@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="${VERSION:-0.1.3}"
+VERSION="${VERSION:-1.0.0}"
 ARCH_DEB="${ARCH_DEB:-amd64}"
 ARCH_RPM="${ARCH_RPM:-x86_64}"
 DIST_DIR="$ROOT_DIR/dist"
@@ -19,12 +19,10 @@ install_tree() {
     "$STAGE/usr/bin" \
     "$STAGE/usr/share/applications" \
     "$STAGE/usr/share/doc/livedesk" \
-    "$STAGE/usr/share/gnome-shell/extensions/livedesk@me.tamkungz" \
+    "$STAGE/usr/share/glib-2.0/schemas" \
     "$STAGE/usr/share/icons/hicolor/256x256/apps" \
     "$STAGE/usr/share/icons/hicolor/scalable/apps" \
-    "$STAGE/usr/share/livedesk/extension-gnome40-44" \
-    "$STAGE/usr/share/livedesk/extension-gnome45-51" \
-    "$STAGE/usr/share/livedesk/extensions" \
+    "$STAGE/usr/share/livedesk/native/gnome-shell" \
     "$STAGE/usr/lib/systemd/user"
 
   install -m 755 "$ROOT_DIR/daemon/target/release/livedesk-daemon" "$STAGE/usr/bin/livedesk-daemon"
@@ -39,15 +37,10 @@ install_tree() {
   install -m 644 "$ROOT_DIR/SETUP.md" "$STAGE/usr/share/doc/livedesk/SETUP.md"
   install -m 644 "$ROOT_DIR/CHANGE.md" "$STAGE/usr/share/doc/livedesk/CHANGE.md"
   install -m 644 "$ROOT_DIR/LICENSE" "$STAGE/usr/share/doc/livedesk/LICENSE"
-
-  cp -r "$ROOT_DIR/shell-extension-legacy/"* "$STAGE/usr/share/livedesk/extension-gnome40-44/"
-  cp -r "$ROOT_DIR/shell-extension/"* "$STAGE/usr/share/livedesk/extension-gnome45-51/"
-  glib-compile-schemas --strict "$STAGE/usr/share/livedesk/extension-gnome40-44/schemas"
-  glib-compile-schemas --strict "$STAGE/usr/share/livedesk/extension-gnome45-51/schemas"
-
-  cp -r "$ROOT_DIR/shell-extension/"* "$STAGE/usr/share/gnome-shell/extensions/livedesk@me.tamkungz/"
-  glib-compile-schemas --strict "$STAGE/usr/share/gnome-shell/extensions/livedesk@me.tamkungz/schemas"
-  cp "$DIST_DIR"/livedesk-extension-gnome*.zip "$STAGE/usr/share/livedesk/extensions/"
+  install -m 644 "$ROOT_DIR/native/gnome-shell/livedeskBackground.js" "$STAGE/usr/share/livedesk/native/gnome-shell/livedeskBackground.js"
+  install -m 644 "$ROOT_DIR/native/gnome-shell/README.md" "$STAGE/usr/share/livedesk/native/gnome-shell/README.md"
+  install -m 644 "$ROOT_DIR/data/schemas/me.tamkungz.Livedesk.gschema.xml" "$STAGE/usr/share/glib-2.0/schemas/me.tamkungz.Livedesk.gschema.xml"
+  glib-compile-schemas --strict "$STAGE/usr/share/glib-2.0/schemas"
 }
 
 build_deb() {
@@ -68,47 +61,28 @@ Maintainer: TamKungZ_ <dev@tamkungz.me>
 Depends: gjs, gir1.2-gtk-4.0, gir1.2-adw-1, gnome-shell, libgstreamer1.0-0, gstreamer1.0-plugins-good, gstreamer1.0-plugins-bad, gstreamer1.0-libav, dbus-user-session
 Recommends: totem | ffmpeg
 Description: Live video wallpaper for GNOME
- Livedesk renders a looping video as the GNOME desktop background via
- a GNOME Shell extension and a native GStreamer daemon.
+ Livedesk teaches GNOME's background setting to accept video files via
+ a GNOME Shell native background patch and a GStreamer daemon.
 EOF
 
   cat > "$deb_root/DEBIAN/postinst" <<'EOF'
 #!/usr/bin/env sh
 set -e
 
-install_extension_variant() {
-  major="$(gnome-shell --version 2>/dev/null | sed -n 's/.* \([0-9][0-9]*\).*/\1/p')"
-  if [ -n "$major" ] && [ "$major" -ge 40 ] && [ "$major" -le 44 ]; then
-    variant="/usr/share/livedesk/extension-gnome40-44"
-  else
-    variant="/usr/share/livedesk/extension-gnome45-51"
-  fi
-
-  rm -rf /usr/share/gnome-shell/extensions/livedesk@me.tamkungz
-  mkdir -p /usr/share/gnome-shell/extensions/livedesk@me.tamkungz
-  cp -a "$variant"/. /usr/share/gnome-shell/extensions/livedesk@me.tamkungz/
-  glib-compile-schemas /usr/share/gnome-shell/extensions/livedesk@me.tamkungz/schemas
-}
-
-install_extension_variant
+glib-compile-schemas /usr/share/glib-2.0/schemas || :
+rm -f /usr/share/applications/me.tamkungz.Livedesk.desktop
 
 cat <<'MSG'
 
 Livedesk was installed.
 
-Open the main app to finish user-session setup automatically:
-  livedesk
-
-You can still run the setup helper manually:
+Set up the native GNOME Shell background overlay:
   livedesk-setup
 
-If GNOME says "Extension does not exist", log out and back in first so
-GNOME Shell can discover the newly installed system extension, then open:
+Then log out and back in once, and open:
   livedesk
 
 MSG
-
-rm -f /usr/share/applications/me.tamkungz.Livedesk.desktop
 
 exit 0
 EOF
@@ -142,8 +116,8 @@ Requires: gstreamer1
 Recommends: totem
 
 %description
-Livedesk renders a looping video as the GNOME desktop background via a
-GNOME Shell extension and a native GStreamer daemon.
+Livedesk teaches GNOME's background setting to accept video files via a
+GNOME Shell native background patch and a GStreamer daemon.
 
 %prep
 %setup -q
@@ -155,16 +129,7 @@ mkdir -p %{buildroot}
 cp -a . %{buildroot}/
 
 %post
-MAJOR="\$(gnome-shell --version 2>/dev/null | sed -n 's/.* \([0-9][0-9]*\).*/\1/p')"
-if [ -n "\$MAJOR" ] && [ "\$MAJOR" -ge 40 ] && [ "\$MAJOR" -le 44 ]; then
-  VARIANT="/usr/share/livedesk/extension-gnome40-44"
-else
-  VARIANT="/usr/share/livedesk/extension-gnome45-51"
-fi
-rm -rf /usr/share/gnome-shell/extensions/livedesk@me.tamkungz
-mkdir -p /usr/share/gnome-shell/extensions/livedesk@me.tamkungz
-cp -a "\$VARIANT"/. /usr/share/gnome-shell/extensions/livedesk@me.tamkungz/
-glib-compile-schemas /usr/share/gnome-shell/extensions/livedesk@me.tamkungz/schemas || :
+glib-compile-schemas /usr/share/glib-2.0/schemas || :
 rm -f /usr/share/applications/me.tamkungz.Livedesk.desktop
 
 %files
@@ -177,7 +142,8 @@ rm -f /usr/share/applications/me.tamkungz.Livedesk.desktop
 /usr/bin/livedesk-setup
 /usr/bin/livedesk-uninstall
 /usr/share/applications/me.tamkungz.LivedeskApp.desktop
-/usr/share/gnome-shell/extensions/livedesk@me.tamkungz
+/usr/share/glib-2.0/schemas/me.tamkungz.Livedesk.gschema.xml
+/usr/share/glib-2.0/schemas/gschemas.compiled
 /usr/share/icons/hicolor/256x256/apps/me.tamkungz.Livedesk.png
 /usr/share/icons/hicolor/scalable/apps/me.tamkungz.Livedesk.svg
 /usr/share/livedesk
@@ -197,7 +163,6 @@ EOF
 }
 
 mkdir -p "$DIST_DIR"
-"$ROOT_DIR/scripts/build-extension-zip.sh" all
 build_release
 install_tree
 build_deb

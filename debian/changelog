@@ -1,3 +1,19 @@
+livedesk (1.0.0-1~noble1) noble; urgency=medium
+
+  * Switch to the GNOME Shell native background overlay path.
+  * Use GNOME's own background picture-uri settings for video wallpapers.
+  * Remove active GNOME Shell extension packaging.
+
+ -- TamKungZ_ <dev@tamkungz.me>  Sat, 18 Jul 2026 13:45:00 +0700
+
+livedesk (1.0.0-1~jammy1) jammy; urgency=medium
+
+  * Switch to the GNOME Shell native background overlay path.
+  * Use GNOME's own background picture-uri settings for video wallpapers.
+  * Remove active GNOME Shell extension packaging.
+
+ -- TamKungZ_ <dev@tamkungz.me>  Sat, 18 Jul 2026 13:45:00 +0700
+
 livedesk (0.1.3-1~noble1) noble; urgency=medium
 
   * Preserve disabled service/autostart settings when opening the app.

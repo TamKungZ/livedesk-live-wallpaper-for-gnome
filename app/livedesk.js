@@ -23,9 +23,11 @@ const THUMB_HEIGHT = 107;
 const TILE_LABEL_CHARS = 24;
 const GRID_MARGIN = 18;
 const GRID_GAP = 24;
-const APP_VERSION = '0.1.3';
-const EXT_UUID = 'livedesk@me.tamkungz';
-const EXT_SCHEMA_ID = 'me.tamkungz.Livedesk';
+const APP_VERSION = '1.0.0';
+const LIVEDESK_SCHEMA_ID = 'me.tamkungz.Livedesk';
+const GNOME_BACKGROUND_SCHEMA_ID = 'org.gnome.desktop.background';
+const PICTURE_URI_KEY = 'picture-uri';
+const PICTURE_URI_DARK_KEY = 'picture-uri-dark';
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.webm', '.mkv', '.mov', '.avi', '.m4v', '.ogv']);
 
 const DBUS_IFACE_XML = `
@@ -34,6 +36,12 @@ const DBUS_IFACE_XML = `
     <method name="SetSource">
       <arg type="s" direction="in" name="monitor"/>
       <arg type="s" direction="in" name="uri"/>
+    </method>
+    <method name="SetMonitorSource">
+      <arg type="s" direction="in" name="monitor"/>
+      <arg type="s" direction="in" name="uri"/>
+      <arg type="u" direction="in" name="width"/>
+      <arg type="u" direction="in" name="height"/>
     </method>
     <method name="Play">
       <arg type="s" direction="in" name="monitor"/>
@@ -71,6 +79,8 @@ function defaultConfig() {
         library: [],
         titles: {},
         selected: '',
+        previous_background_uri: '',
+        previous_background_uri_dark: '',
         muted: true,
         service_mode_disabled: false,
         autostart_disabled: false,
@@ -94,6 +104,8 @@ function loadConfig() {
         config.library_dir = config.library_dir || defaultLibraryDir();
         config.service_mode_disabled = Boolean(config.service_mode_disabled);
         config.autostart_disabled = Boolean(config.autostart_disabled);
+        config.previous_background_uri = config.previous_background_uri || '';
+        config.previous_background_uri_dark = config.previous_background_uri_dark || '';
 
         const firstMonitor = Object.keys(config.monitors)[0] ?? 'monitor-0';
         const activeUri = config.selected || config.monitors[firstMonitor]?.uri || '';
@@ -226,11 +238,34 @@ function programExists(name) {
     return Boolean(GLib.find_program_in_path(name));
 }
 
-function extensionSettings() {
+function livedeskSettings() {
     try {
-        return new Gio.Settings({schema_id: EXT_SCHEMA_ID});
+        return new Gio.Settings({schema_id: LIVEDESK_SCHEMA_ID});
     } catch (_) {
         return null;
+    }
+}
+
+function gnomeBackgroundSettings() {
+    try {
+        return new Gio.Settings({schema_id: GNOME_BACKGROUND_SCHEMA_ID});
+    } catch (_) {
+        return null;
+    }
+}
+
+function settingsString(settings, key) {
+    try {
+        return settings.get_string(key);
+    } catch (_) {
+        return '';
+    }
+}
+
+function setSettingsString(settings, key, value) {
+    try {
+        settings.set_string(key, value);
+    } catch (_) {
     }
 }
 
@@ -583,7 +618,7 @@ class LivedeskApp extends Adw.Application {
 
         const setupRow = new Adw.ActionRow({
             title: 'Setup current session',
-            subtitle: 'Runs livedesk-setup. If GNOME Shell still cannot see the extension, log out and back in once.',
+            subtitle: 'Starts the daemon and checks whether GNOME Shell is using the Livedesk-native background patch.',
         });
         const setupButton = new Gtk.Button({
             label: 'Run Setup',
@@ -697,11 +732,6 @@ class LivedeskApp extends Adw.Application {
             }
         }
 
-        if (programExists('gnome-extensions')) {
-            if (runCommand(['gnome-extensions', 'info', EXT_UUID]))
-                runCommand(['gnome-extensions', 'enable', EXT_UUID]);
-        }
-
         this._connectProxy();
         this._refreshServiceSwitches();
         this._refreshSetupStatus();
@@ -720,16 +750,9 @@ class LivedeskApp extends Adw.Application {
         this._updatingServiceSwitches = false;
     }
 
-    _extensionVisible() {
-        return programExists('gnome-extensions')
-            && commandSucceeds(['gnome-extensions', 'info', EXT_UUID]);
-    }
-
-    _extensionEnabled() {
-        if (!programExists('gnome-extensions'))
-            return false;
-        const result = runCommandWithOutput(['gnome-extensions', 'list', '--enabled']);
-        return result.ok && result.stdout.split('\n').includes(EXT_UUID);
+    _nativeShellConfigured() {
+        const result = runCommandWithOutput(['livedesk-setup', '--check-native']);
+        return result.ok;
     }
 
     _setupState() {
@@ -738,17 +761,14 @@ class LivedeskApp extends Adw.Application {
             && commandSucceeds(['systemctl', '--user', 'is-active', '--quiet', 'livedesk-daemon.service']);
         const autostartEnabled = hasSystemctl
             && commandSucceeds(['systemctl', '--user', 'is-enabled', '--quiet', 'livedesk-daemon.service']);
-        const hasExtensionsCli = programExists('gnome-extensions');
-        const extensionVisible = hasExtensionsCli && this._extensionVisible();
-        const extensionEnabled = extensionVisible && this._extensionEnabled();
+        const nativeShellConfigured = programExists('livedesk-setup')
+            && this._nativeShellConfigured();
 
         return {
             hasSystemctl,
             serviceActive,
             autostartEnabled,
-            hasExtensionsCli,
-            extensionVisible,
-            extensionEnabled,
+            nativeShellConfigured,
         };
     }
 
@@ -765,13 +785,8 @@ class LivedeskApp extends Adw.Application {
                 actions.push('Enable Autostart on login, or run livedesk-setup.');
         }
 
-        if (!state.hasExtensionsCli) {
-            actions.push('gnome-extensions is not available. Enable Livedesk from the GNOME Extensions app.');
-        } else if (!state.extensionVisible) {
-            actions.push('Log out and back in once so GNOME Shell can discover the Livedesk extension. On X11, restarting GNOME Shell may also work.');
-        } else if (!state.extensionEnabled) {
-            actions.push('Enable the Livedesk extension with Run Setup or the GNOME Extensions app.');
-        }
+        if (!state.nativeShellConfigured)
+            actions.push('Run setup, then log out and back in once so GNOME Shell starts with the Livedesk-native background patch.');
 
         if (actions.length === 0)
             return '';
@@ -780,14 +795,10 @@ class LivedeskApp extends Adw.Application {
 
     _setupStatusText() {
         const state = this._setupState();
-        if (!state.hasSystemctl && !state.hasExtensionsCli)
-            return 'Run livedesk-setup in a terminal after installing GNOME extension tools and user systemd support.';
-        if (!state.hasExtensionsCli)
-            return 'Enable Livedesk from the GNOME Extensions app, then run setup again.';
-        if (!state.extensionVisible)
-            return 'Log out and back in once, then open Livedesk or run livedesk-setup again.';
-        if (!state.extensionEnabled)
-            return 'Enable Livedesk in GNOME Extensions, or run setup again.';
+        if (!state.hasSystemctl)
+            return 'Run livedesk-setup in a terminal after installing user systemd support.';
+        if (!state.nativeShellConfigured)
+            return 'Run setup, then log out and back in once so GNOME Shell uses the native background patch.';
         if (!state.serviceActive && !this._config.service_mode_disabled)
             return 'Run setup or enable service mode to start the background daemon.';
         if (!state.autostartEnabled && !this._config.autostart_disabled)
@@ -821,7 +832,7 @@ class LivedeskApp extends Adw.Application {
         }
 
         const detail = (result.stderr || result.stdout || `Exit status ${result.status}`).trim();
-        this._showError(`Setup could not finish automatically.\n\n${detail}\n\nYou can still run livedesk-setup in a terminal, then log out and back in if GNOME Shell does not see the extension.`);
+        this._showError(`Setup could not finish automatically.\n\n${detail}\n\nYou can still run livedesk-setup in a terminal, then log out and back in so GNOME Shell sees the native background patch.`);
     }
 
     _detectMonitors() {
@@ -1128,7 +1139,6 @@ class LivedeskApp extends Adw.Application {
                     runCommand(['systemctl', '--user', 'mask', 'livedesk-daemon.service']);
                 this._connectProxy();
             } else {
-                this._setWallpaperEnabled(false);
                 runCommand(['systemctl', '--user', 'stop', 'livedesk-daemon.service']);
             }
             this._refreshSetupStatus();
@@ -1168,7 +1178,7 @@ class LivedeskApp extends Adw.Application {
 
     _saveAndApply() {
         this._saveConfigOnly();
-        this._setWallpaperEnabled(true);
+        this._applyGnomeBackground(this._config.selected);
         this._connectProxy();
 
         if (!this._proxy) {
@@ -1178,28 +1188,42 @@ class LivedeskApp extends Adw.Application {
 
         const monitor = this._activeMonitor();
         const uri = this._config.selected;
-        if (uri)
-            this._proxy.SetSourceRemote(monitor, uri);
+        const monitorConfig = this._activeMonitorConfig();
+        if (uri) {
+            this._proxy.SetMonitorSourceRemote(
+                monitor,
+                uri,
+                monitorConfig.width,
+                monitorConfig.height
+            );
+        }
         this._proxy.SetMutedRemote(monitor, this._mutedSwitch?.active ?? this._config.muted ?? true);
         if (uri)
             this._proxy.PlayRemote(monitor);
     }
 
     _playSelected() {
-        this._setWallpaperEnabled(true);
+        this._saveConfigOnly();
+        this._applyGnomeBackground(this._config.selected);
         this._connectProxy();
         if (!this._proxy || !this._config.selected)
             return;
 
         const monitor = this._activeMonitor();
-        this._proxy.SetSourceRemote(monitor, this._config.selected);
+        const monitorConfig = this._activeMonitorConfig();
+        this._proxy.SetMonitorSourceRemote(
+            monitor,
+            this._config.selected,
+            monitorConfig.width,
+            monitorConfig.height
+        );
         this._proxy.SetMutedRemote(monitor, this._mutedSwitch?.active ?? this._config.muted ?? true);
         this._proxy.PlayRemote(monitor);
     }
 
     _callDaemon(method) {
         if (method === 'PlayRemote')
-            this._setWallpaperEnabled(true);
+            this._applyGnomeBackground(this._config.selected);
         this._connectProxy();
         if (!this._proxy) {
             this._showError('Daemon is not available.');
@@ -1208,16 +1232,41 @@ class LivedeskApp extends Adw.Application {
         this._proxy[method](this._activeMonitor());
     }
 
-    _setWallpaperEnabled(enabled) {
-        const settings = extensionSettings();
-        try {
-            settings?.set_boolean('wallpaper-enabled', enabled);
-        } catch (_) {
+    _applyGnomeBackground(uri) {
+        if (!uri)
+            return;
+
+        const settings = gnomeBackgroundSettings();
+        if (!settings) {
+            this._showError('GNOME background settings are not available.');
+            return;
         }
+
+        const current = settingsString(settings, PICTURE_URI_KEY);
+        const currentDark = settingsString(settings, PICTURE_URI_DARK_KEY);
+        if (current && current !== uri && !isVideoName(current))
+            this._config.previous_background_uri = current;
+        if (currentDark && currentDark !== uri && !isVideoName(currentDark))
+            this._config.previous_background_uri_dark = currentDark;
+
+        setSettingsString(settings, PICTURE_URI_KEY, uri);
+        setSettingsString(settings, PICTURE_URI_DARK_KEY, uri);
+
+        const lsettings = livedeskSettings();
+        lsettings?.set_boolean('muted', this._mutedSwitch?.active ?? this._config.muted ?? true);
+
+        this._saveConfigOnly();
     }
 
     _restoreWallpaper() {
-        this._setWallpaperEnabled(false);
+        const settings = gnomeBackgroundSettings();
+        if (settings) {
+            if (this._config.previous_background_uri)
+                setSettingsString(settings, PICTURE_URI_KEY, this._config.previous_background_uri);
+            if (this._config.previous_background_uri_dark)
+                setSettingsString(settings, PICTURE_URI_DARK_KEY, this._config.previous_background_uri_dark);
+        }
+
         this._connectProxy();
         if (this._proxy) {
             for (const monitor of this._monitors ?? [])

@@ -82,9 +82,8 @@ fn main() -> Result<()> {
 
     // Blocks forever, dispatching D-Bus calls; Ctrl+C / SIGTERM just kill
     // the process (GStreamer pipelines are torn down via Drop).
-    dbus_iface::serve(service).context(
-        "failed to claim me.tamkungz.Livedesk on the session bus (already running?)",
-    )?;
+    dbus_iface::serve(service)
+        .context("failed to claim me.tamkungz.Livedesk on the session bus (already running?)")?;
 
     Ok(())
 }

@@ -1,6 +1,6 @@
 [package]
 name = "livedesk-daemon"
-version = "0.1.3"
+version = "1.0.0"
 edition = "2021"
 authors = ["TamKungZ_ <dev@tamkungz.me>"]
 description = "Daemon that decodes a video and exposes frames via shared memory + D-Bus control for Livedesk."

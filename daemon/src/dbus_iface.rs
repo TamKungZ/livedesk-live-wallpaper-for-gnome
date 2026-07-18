@@ -37,15 +37,54 @@ impl WallpaperService {
     }
 
     fn ensure_monitor(&self, monitor: &str) -> Result<(), MethodErr> {
+        self.ensure_monitor_size(monitor, 1920, 1080)
+    }
+
+    fn ensure_monitor_size(&self, monitor: &str, width: u32, height: u32) -> Result<(), MethodErr> {
         let mut monitors = self.monitors.lock().unwrap();
-        if monitors.contains_key(monitor) {
-            return Ok(());
+        if let Some(existing) = monitors.get(monitor) {
+            if existing.dimensions() == (width, height) {
+                return Ok(());
+            }
         }
 
-        let pipeline = MonitorPipeline::new(monitor, 1920, 1080)
+        if width == 0 || height == 0 {
+            return Err(MethodErr::failed(
+                "monitor dimensions must be greater than zero",
+            ));
+        }
+
+        if monitors.contains_key(monitor) {
+            monitors.remove(monitor);
+        }
+
+        let pipeline = MonitorPipeline::new(monitor, width, height)
             .map_err(|e| MethodErr::failed(&e.to_string()))?;
         monitors.insert(monitor.to_string(), pipeline);
         Ok(())
+    }
+
+    fn set_monitor_source(
+        &self,
+        monitor: &str,
+        uri: &str,
+        width: u32,
+        height: u32,
+    ) -> Result<(), MethodErr> {
+        self.ensure_monitor_size(monitor, width, height)?;
+        self.with_monitor(monitor, |p| p.set_source(uri))
+    }
+
+    fn set_source_legacy(&self, monitor: &str, uri: &str) -> Result<(), MethodErr> {
+        self.ensure_monitor(monitor)?;
+        self.with_monitor(monitor, |p| p.set_source(uri))
+    }
+
+    fn set_muted_legacy(&self, monitor: &str, muted: bool) -> Result<(), MethodErr> {
+        self.with_monitor(monitor, |p| {
+            p.set_muted(muted);
+            Ok(())
+        })
     }
 }
 
@@ -64,8 +103,18 @@ pub fn serve(service: WallpaperService) -> anyhow::Result<()> {
             ("monitor", "uri"),
             (),
             |_ctx: &mut Context, svc: &mut WallpaperService, (monitor, uri): (String, String)| {
-                svc.ensure_monitor(&monitor)?;
-                svc.with_monitor(&monitor, |p| p.set_source(&uri))
+                svc.set_source_legacy(&monitor, &uri)
+            },
+        );
+
+        b.method(
+            "SetMonitorSource",
+            ("monitor", "uri", "width", "height"),
+            (),
+            |_ctx: &mut Context,
+             svc: &mut WallpaperService,
+             (monitor, uri, width, height): (String, String, u32, u32)| {
+                svc.set_monitor_source(&monitor, &uri, width, height)
             },
         );
 
@@ -101,10 +150,7 @@ pub fn serve(service: WallpaperService) -> anyhow::Result<()> {
             ("monitor", "muted"),
             (),
             |_ctx: &mut Context, svc: &mut WallpaperService, (monitor, muted): (String, bool)| {
-                svc.with_monitor(&monitor, |p| {
-                    p.set_muted(muted);
-                    Ok(())
-                })
+                svc.set_muted_legacy(&monitor, muted)
             },
         );
 

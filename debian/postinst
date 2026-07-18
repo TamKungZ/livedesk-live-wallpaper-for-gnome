@@ -1,26 +1,9 @@
 #!/bin/sh
 set -e
 
-EXT_UUID="livedesk@me.tamkungz"
-EXT_DEST="/usr/share/gnome-shell/extensions/$EXT_UUID"
-
-install_extension_variant() {
-  major="$(gnome-shell --version 2>/dev/null | sed -n 's/.* \([0-9][0-9]*\).*/\1/p')"
-  if [ -n "$major" ] && [ "$major" -ge 40 ] && [ "$major" -le 44 ]; then
-    variant="/usr/share/livedesk/extension-gnome40-44"
-  else
-    variant="/usr/share/livedesk/extension-gnome45-51"
-  fi
-
-  rm -rf "$EXT_DEST"
-  mkdir -p "$EXT_DEST"
-  cp -a "$variant"/. "$EXT_DEST"/
-  glib-compile-schemas "$EXT_DEST/schemas"
-}
-
 case "$1" in
   configure)
-    install_extension_variant
+    glib-compile-schemas /usr/share/glib-2.0/schemas || :
     rm -f /usr/share/applications/me.tamkungz.Livedesk.desktop
     ;;
 esac

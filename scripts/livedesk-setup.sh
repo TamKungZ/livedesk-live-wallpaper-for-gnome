@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-EXT_UUID="livedesk@me.tamkungz"
+APP_DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/livedesk"
+NATIVE_DIR="$APP_DATA_DIR/gnome-shell-js"
+ENV_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/environment.d"
+ENV_FILE="$ENV_DIR/90-livedesk-gnome-shell.conf"
 
 info() {
   printf '==> %s\n' "$*"
@@ -15,41 +18,165 @@ have() {
   command -v "$1" >/dev/null 2>&1
 }
 
-info "Reloading user systemd units"
-systemctl --user daemon-reload
+script_dir() {
+  cd "$(dirname "${BASH_SOURCE[0]}")" && pwd
+}
 
-info "Starting Livedesk daemon"
-systemctl --user unmask livedesk-daemon.service >/dev/null 2>&1 || true
-systemctl --user enable --now livedesk-daemon.service
+find_native_module() {
+  local candidates=(
+    "$APP_DATA_DIR/native/gnome-shell/livedeskBackground.js"
+    "$(script_dir)/../native/gnome-shell/livedeskBackground.js"
+    "/usr/share/livedesk/native/gnome-shell/livedeskBackground.js"
+  )
 
-if have gnome-extensions; then
-  info "Checking GNOME extension"
-  if gnome-extensions info "$EXT_UUID" >/dev/null 2>&1; then
-    if gnome-extensions enable "$EXT_UUID" >/dev/null 2>&1; then
-      info "Enabled $EXT_UUID"
-    else
-      warn "GNOME found $EXT_UUID but could not enable it."
-      warn "Open Extensions, check the error state, then try again."
+  for candidate in "${candidates[@]}"; do
+    if [ -f "$candidate" ]; then
+      printf '%s\n' "$candidate"
+      return 0
     fi
-    gnome-extensions info "$EXT_UUID" || true
-  else
-    warn "GNOME Shell does not see $EXT_UUID yet."
-    warn "Log out and back in, then run: gnome-extensions enable $EXT_UUID"
+  done
+
+  return 1
+}
+
+find_shell_library() {
+  local candidates=(
+    "/usr/lib/gnome-shell/libgnome-shell.so"
+    "/usr/lib64/gnome-shell/libgnome-shell.so"
+  )
+
+  for candidate in "${candidates[@]}"; do
+    if [ -f "$candidate" ]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+extract_background_js() {
+  local shell_lib="$1"
+  local out="$2"
+
+  if gresource extract "$shell_lib" /org/gnome/shell/ui/background.js > "$out"; then
+    return 0
   fi
-else
-  warn "gnome-extensions command was not found."
-fi
+
+  return 1
+}
+
+patch_background_js() {
+  local file="$1"
+
+  grep -q "const Params = imports.misc.params;" "$file" || {
+    warn "GNOME Shell background.js does not match the supported imports.* layout."
+    warn "This native overlay currently targets GNOME Shell 40-44, tested on 43.x."
+    return 1
+  }
+
+  grep -q "this._container.set_child_below_sibling(backgroundActor, null);" "$file" || {
+    warn "Could not find BackgroundManager._createBackgroundActor patch point."
+    return 1
+  }
+
+  if ! grep -q "imports.ui.livedeskBackground" "$file"; then
+    sed -i "/const Params = imports.misc.params;/a const LivedeskBackground = imports.ui.livedeskBackground;" "$file"
+  fi
+
+  if ! grep -q "LivedeskBackground.attachToBackgroundManager" "$file"; then
+    sed -i "/this._container.set_child_below_sibling(backgroundActor, null);/a \\
+        LivedeskBackground.attachToBackgroundManager(this, backgroundActor);" "$file"
+  fi
+}
+
+install_native_shell_overlay() {
+  local native_module shell_lib
+
+  native_module="$(find_native_module)" || {
+    warn "Could not find livedeskBackground.js."
+    warn "Install from the project root or package native/gnome-shell with Livedesk."
+    return 1
+  }
+
+  shell_lib="$(find_shell_library)" || {
+    warn "Could not find GNOME Shell's libgnome-shell.so."
+    return 1
+  }
+
+  have gresource || {
+    warn "gresource was not found. Install libglib2.0-bin or your distro's GLib tools package."
+    return 1
+  }
+
+  info "Installing GNOME Shell native background overlay"
+  rm -rf "$NATIVE_DIR"
+  mkdir -p "$NATIVE_DIR/ui"
+
+  extract_background_js "$shell_lib" "$NATIVE_DIR/ui/background.js"
+  cp "$native_module" "$NATIVE_DIR/ui/livedeskBackground.js"
+  patch_background_js "$NATIVE_DIR/ui/background.js"
+
+  mkdir -p "$ENV_DIR"
+  cat > "$ENV_FILE" <<EOF
+GNOME_SHELL_JS=$NATIVE_DIR
+EOF
+
+  if have systemctl; then
+    export GNOME_SHELL_JS="$NATIVE_DIR"
+    systemctl --user import-environment GNOME_SHELL_JS >/dev/null 2>&1 || true
+  fi
+}
+
+check_native() {
+  [ -f "$NATIVE_DIR/ui/background.js" ] || return 1
+  [ -f "$NATIVE_DIR/ui/livedeskBackground.js" ] || return 1
+  grep -q "LivedeskBackground.attachToBackgroundManager" "$NATIVE_DIR/ui/background.js" || return 1
+  [ -f "$ENV_FILE" ] || return 1
+  grep -q "^GNOME_SHELL_JS=$NATIVE_DIR$" "$ENV_FILE" || return 1
+}
+
+start_daemon() {
+  if have systemctl; then
+    info "Reloading user systemd units"
+    systemctl --user daemon-reload
+
+    info "Starting Livedesk daemon"
+    systemctl --user unmask livedesk-daemon.service >/dev/null 2>&1 || true
+    systemctl --user enable --now livedesk-daemon.service
+  else
+    warn "systemctl was not found; start livedesk-daemon manually."
+  fi
+}
+
+case "${1:-}" in
+  --check-native)
+    check_native
+    exit $?
+    ;;
+  -h|--help)
+    cat <<'EOF'
+Usage: livedesk-setup [--check-native]
+
+Installs the user-session native GNOME Shell JS overlay for Livedesk and starts
+the user daemon. Log out and back in once after setup so GNOME Shell starts with
+GNOME_SHELL_JS pointing at the overlay.
+EOF
+    exit 0
+    ;;
+esac
+
+install_native_shell_overlay
+start_daemon
 
 cat <<EOF
 
-Next steps:
-  1. Open Livedesk:
-       livedesk
-  2. Pick a video from ~/Videos/Livedesk or import one.
-  3. Double-click a video, or click Save and Apply.
+Livedesk native setup finished.
 
-If the desktop is black:
-  journalctl --user -u livedesk-daemon -n 80 --no-pager
-  journalctl --user -b /usr/bin/gnome-shell -n 120 --no-pager | grep -i livedesk
+Log out and back in once. After that, GNOME Shell will load:
+  $NATIVE_DIR
+
+Pick a video in Livedesk. The app will write that video URI to:
+  org.gnome.desktop.background picture-uri
 
 EOF
