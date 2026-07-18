@@ -9,11 +9,22 @@ fail() {
 }
 
 need_cmd() {
-  command -v "$1" >/dev/null 2>&1 || fail "missing required command '$1'"
+  local cmd="$1"
+  local package="${2:-}"
+  if ! command -v "$cmd" >/dev/null 2>&1; then
+    if [ -n "$package" ]; then
+      fail "missing required command '$cmd'
+
+Install it with:
+  sudo apt install $package"
+    fi
+
+    fail "missing required command '$cmd'"
+  fi
 }
 
-need_cmd dpkg-parsechangelog
-need_cmd awk
+need_cmd dpkg-parsechangelog dpkg-dev
+need_cmd awk mawk
 
 CHANGELOG="$ROOT_DIR/debian/changelog"
 CHANGELOG_SERIES="$(dpkg-parsechangelog -l "$CHANGELOG" -S Distribution)"
@@ -110,21 +121,21 @@ verify_signatures() {
 upload_package() {
   local target="${PPA:-}"
   [ -n "$target" ] || fail "UPLOAD=1 requires PPA=ppa:<launchpad-user>/<ppa-name>"
-  need_cmd dput
+  need_cmd dput dput
   verify_upload_files
   verify_signatures
   dput "$target" "$CHANGES_FILE" || fail "dput upload failed for $CHANGES_FILE"
 }
 
-need_cmd debuild
-need_cmd tar
-need_cmd sed
-need_cmd sha256sum
+need_cmd debuild devscripts
+need_cmd tar tar
+need_cmd sed sed
+need_cmd sha256sum coreutils
 if [ "${UPLOAD:-0}" = "1" ]; then
   [ -n "${PPA:-}" ] || fail "UPLOAD=1 requires PPA=ppa:<launchpad-user>/<ppa-name>"
   [ "${UNSIGNED:-0}" != "1" ] || fail "UPLOAD=1 cannot be used with UNSIGNED=1 because Launchpad requires signed .changes and .dsc files"
-  need_cmd dput
-  need_cmd gpg
+  need_cmd dput dput
+  need_cmd gpg gnupg
 fi
 
 if [ ! -d "$ROOT_DIR/daemon/vendor" ]; then
