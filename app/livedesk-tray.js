@@ -17,8 +17,11 @@ const CACHE_DIR = GLib.build_filenamev([GLib.get_user_cache_dir(), 'livedesk']);
 const LOG_PATH = GLib.build_filenamev([CACHE_DIR, 'livedesk.log']);
 const GNOME_BACKGROUND_SCHEMA_ID = 'org.gnome.desktop.background';
 const GNOME_SCREENSAVER_SCHEMA_ID = 'org.gnome.desktop.screensaver';
+const LIVEDESK_SCHEMA_ID = 'me.tamkungz.Livedesk';
 const PICTURE_URI_KEY = 'picture-uri';
 const PICTURE_URI_DARK_KEY = 'picture-uri-dark';
+const VIDEO_URI_KEY = 'video-uri';
+const STILL_URI_KEY = 'still-uri';
 
 const DBUS_IFACE_XML = `
 <node>
@@ -114,6 +117,7 @@ function restoreWallpaper() {
     const config = loadConfig();
     const bg = settings(GNOME_BACKGROUND_SCHEMA_ID);
     const saver = settings(GNOME_SCREENSAVER_SCHEMA_ID);
+    const livedesk = settings(LIVEDESK_SCHEMA_ID);
 
     if (bg) {
         if (config.previous_background_uri)
@@ -123,6 +127,10 @@ function restoreWallpaper() {
     }
     if (saver && config.previous_screensaver_uri)
         setString(saver, PICTURE_URI_KEY, config.previous_screensaver_uri);
+    if (livedesk) {
+        setString(livedesk, VIDEO_URI_KEY, '');
+        setString(livedesk, STILL_URI_KEY, '');
+    }
 
     callDaemon('StopRemote');
 }

@@ -31,6 +31,8 @@ const GNOME_BACKGROUND_SCHEMA_ID = 'org.gnome.desktop.background';
 const GNOME_SCREENSAVER_SCHEMA_ID = 'org.gnome.desktop.screensaver';
 const PICTURE_URI_KEY = 'picture-uri';
 const PICTURE_URI_DARK_KEY = 'picture-uri-dark';
+const VIDEO_URI_KEY = 'video-uri';
+const STILL_URI_KEY = 'still-uri';
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.webm', '.mkv', '.mov', '.avi', '.m4v', '.ogv']);
 
 const DBUS_IFACE_XML = `
@@ -1393,28 +1395,36 @@ class LivedeskApp extends Adw.Application {
 
         const current = settingsString(settings, PICTURE_URI_KEY);
         const currentDark = settingsString(settings, PICTURE_URI_DARK_KEY);
-        if (current && current !== uri && !isVideoName(current))
+        const still = stillForUri(uri);
+        const stillUri = still ? Gio.File.new_for_path(still).get_uri() : '';
+        const visibleUri = stillUri || uri;
+
+        if (current && current !== uri && current !== stillUri && !isVideoName(current))
             this._config.previous_background_uri = current;
-        if (currentDark && currentDark !== uri && !isVideoName(currentDark))
+        if (currentDark && currentDark !== uri && currentDark !== stillUri && !isVideoName(currentDark))
             this._config.previous_background_uri_dark = currentDark;
 
-        this._logAction(`GNOME background picture-uri -> ${uri}`);
-        setSettingsString(settings, PICTURE_URI_KEY, uri);
-        setSettingsString(settings, PICTURE_URI_DARK_KEY, uri);
+        this._logAction(`GNOME background picture-uri -> ${visibleUri}`);
+        setSettingsString(settings, PICTURE_URI_KEY, visibleUri);
+        setSettingsString(settings, PICTURE_URI_DARK_KEY, visibleUri);
 
-        const still = stillForUri(uri);
+        this._config.still_uri = stillUri;
         const screensaver = gnomeScreensaverSettings();
-        if (still && screensaver) {
+        if (stillUri && screensaver) {
             const currentScreensaver = settingsString(screensaver, PICTURE_URI_KEY);
-            if (currentScreensaver && currentScreensaver !== Gio.File.new_for_path(still).get_uri())
+            if (currentScreensaver && currentScreensaver !== stillUri)
                 this._config.previous_screensaver_uri = currentScreensaver;
-            this._config.still_uri = Gio.File.new_for_path(still).get_uri();
             this._logAction(`GNOME screensaver picture-uri -> ${this._config.still_uri}`);
             setSettingsString(screensaver, PICTURE_URI_KEY, this._config.still_uri);
         }
 
         const lsettings = livedeskSettings();
-        lsettings?.set_boolean('muted', this._mutedSwitch?.active ?? this._config.muted ?? true);
+        if (lsettings) {
+            this._logAction(`Livedesk video-uri -> ${uri}`);
+            setSettingsString(lsettings, VIDEO_URI_KEY, uri);
+            setSettingsString(lsettings, STILL_URI_KEY, stillUri);
+            lsettings.set_boolean('muted', this._mutedSwitch?.active ?? this._config.muted ?? true);
+        }
 
         this._saveConfigOnly();
     }
@@ -1437,6 +1447,13 @@ class LivedeskApp extends Adw.Application {
         if (screensaver && this._config.previous_screensaver_uri) {
             this._logAction(`GNOME screensaver picture-uri -> ${this._config.previous_screensaver_uri}`);
             setSettingsString(screensaver, PICTURE_URI_KEY, this._config.previous_screensaver_uri);
+        }
+
+        const lsettings = livedeskSettings();
+        if (lsettings) {
+            this._logAction('Livedesk video-uri -> (empty)');
+            setSettingsString(lsettings, VIDEO_URI_KEY, '');
+            setSettingsString(lsettings, STILL_URI_KEY, '');
         }
 
         this._connectProxy();

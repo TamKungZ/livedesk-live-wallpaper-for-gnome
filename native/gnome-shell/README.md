@@ -8,16 +8,27 @@ writes RGBA frames to the shared-memory files under `$XDG_RUNTIME_DIR/livedesk`.
 The patched Shell imports `js/ui/livedeskBackground.js` and attaches one live
 actor per monitor while Shell creates its normal `Meta.BackgroundActor`.
 
-The video source is GNOME's own wallpaper setting:
+The visible wallpaper source remains GNOME's own wallpaper setting:
 
 ```text
 org.gnome.desktop.background picture-uri
 org.gnome.desktop.background picture-uri-dark
 ```
 
-When either setting points at a video file, Livedesk treats that video as the
-desktop background. When the URI points at a normal image, GNOME's stock
-background path is left alone.
+In normal operation those keys point at a first-frame PNG so GNOME Settings and
+other preview UIs can still render a static background. The matching video
+source is stored in:
+
+```text
+me.tamkungz.Livedesk video-uri
+me.tamkungz.Livedesk still-uri
+```
+
+When the current GNOME background URI matches Livedesk's still URI, the native
+overlay treats `video-uri` as the wallpaper source. Direct video URIs in
+GNOME's background settings are still accepted as a compatibility path. When the
+URI points at any other normal image, GNOME's stock background path is left
+alone.
 
 This is not a standalone Wayland client. On GNOME Wayland, a normal process
 cannot draw below Shell's compositor-owned desktop. The only non-extension ways
@@ -54,8 +65,10 @@ to be a real background are:
 
 ## Current Behavior
 
-- Uses GNOME's `org.gnome.desktop.background` URI as the video source.
-- Uses Livedesk GSettings only for playback preferences:
+- Uses GNOME's `org.gnome.desktop.background` URI as the visible still source.
+- Uses Livedesk GSettings for the native playback source and preferences:
+  - `video-uri`
+  - `still-uri`
   - `muted`
   - `frame-rate`
 - Starts `livedesk-daemon.service` over systemd user session when D-Bus is not

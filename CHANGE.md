@@ -6,12 +6,13 @@
 - Added detailed app-side command logging to `~/.cache/livedesk/livedesk.log` and the Background Service settings page.
 - Added terminal-visible action logging for app buttons, setup commands, daemon calls, and still-frame generation.
 - Added first-frame static PNG fallback generation for GNOME surfaces that still need an image wallpaper.
+- Changed GNOME background `picture-uri` to use the generated still image while the native overlay reads the video source from `me.tamkungz.Livedesk video-uri`.
 - Added a separate Ayatana/AppIndicator tray helper with quick app, play, pause, restore, and log actions.
 
 ## 1.0.0
 
 - Replaced the GNOME Shell extension runtime with a GNOME Shell native background overlay.
-- Changed video selection to use GNOME's own `org.gnome.desktop.background picture-uri` and `picture-uri-dark` settings as the wallpaper source.
+- Changed video selection to integrate with GNOME's own background settings through the native background overlay.
 - Added `livedesk-setup` native overlay installation through `GNOME_SHELL_JS`, with setup checks and user-session daemon startup.
 - Added a GNOME Shell native background module that detects video wallpaper URIs, starts the daemon, and reads frames from shared memory.
 - Added `SetMonitorSource` D-Bus control so the daemon can create per-monitor frame buffers at the real monitor resolution.
