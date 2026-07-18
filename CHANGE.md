@@ -19,6 +19,7 @@
 - Fixed black GNOME/Zorin overview backgrounds by attaching the native live actor to workspace preview backgrounds as well as the desktop background.
 - Reduced overview flicker by making non-desktop background actors passive frame readers instead of daemon controllers.
 - Added a Mutter-native roadmap for replacing the Shell actor overlay with a real background content renderer.
+- Added Linux x64 and arm64 release build/publish coverage for Debian and RPM packages.
 
 ## 0.1.3
 

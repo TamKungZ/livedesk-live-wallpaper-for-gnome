@@ -6,8 +6,20 @@ VERSION="${VERSION:-1.0.0}"
 ARCH_DEB="${ARCH_DEB:-amd64}"
 ARCH_RPM="${ARCH_RPM:-x86_64}"
 DIST_DIR="$ROOT_DIR/dist"
-PKGROOT="$ROOT_DIR/target/package"
+if [ -z "${PKGROOT:-}" ]; then
+  PKGROOT="$(mktemp -d "${TMPDIR:-/tmp}/livedesk-package.XXXXXX")"
+  CLEAN_PKGROOT=1
+else
+  CLEAN_PKGROOT=0
+fi
 STAGE="$PKGROOT/livedesk-${VERSION}"
+
+cleanup() {
+  if [ "$CLEAN_PKGROOT" -eq 1 ]; then
+    rm -rf "$PKGROOT"
+  fi
+}
+trap cleanup EXIT
 
 build_release() {
   (cd "$ROOT_DIR/daemon" && cargo build --release --locked)
@@ -51,6 +63,7 @@ build_deb() {
   rm -rf "$deb_root"
   mkdir -p "$deb_root/DEBIAN"
   cp -a "$STAGE"/. "$deb_root/"
+  chmod 755 "$deb_root" "$deb_root/DEBIAN"
 
   cat > "$deb_root/DEBIAN/control" <<EOF
 Package: livedesk
@@ -161,6 +174,7 @@ EOF
   rpmbuild \
     --define "_topdir $rpmroot" \
     --define "_tmppath $rpmroot/tmp" \
+    --target "$ARCH_RPM" \
     -bb "$rpmroot/SPECS/livedesk.spec"
   cp "$rpmroot"/RPMS/*/*.rpm "$DIST_DIR/"
   echo "Built rpm packages in $DIST_DIR"

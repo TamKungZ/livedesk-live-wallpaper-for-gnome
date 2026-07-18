@@ -51,7 +51,7 @@ need a separate native overlay before they are considered supported.
 ```bash
 curl -fsSL https://packages.tamkungz.me/gpg.key \
   | sudo gpg --dearmor -o /usr/share/keyrings/tamkungz-archive-keyring.gpg
-echo "deb [arch=amd64 signed-by=/usr/share/keyrings/tamkungz-archive-keyring.gpg] https://packages.tamkungz.me/apt stable main" \
+echo "deb [arch=amd64,arm64 signed-by=/usr/share/keyrings/tamkungz-archive-keyring.gpg] https://packages.tamkungz.me/apt stable main" \
   | sudo tee /etc/apt/sources.list.d/tamkungz.list
 sudo apt update
 sudo apt install livedesk
@@ -75,7 +75,7 @@ sudo rpm --import https://packages.tamkungz.me/gpg.key
 sudo tee /etc/yum.repos.d/tamkungz.repo >/dev/null <<'EOF'
 [tamkungz]
 name=TamKungZ_ Packages
-baseurl=https://packages.tamkungz.me/rpm/x86_64
+baseurl=https://packages.tamkungz.me/rpm/$basearch
 enabled=1
 gpgcheck=1
 repo_gpgcheck=1

@@ -11,9 +11,23 @@ permissions:
   contents: write
 
 jobs:
-  release-linux-x64:
-    name: Release Linux x64
-    runs-on: ubuntu-22.04
+  release-linux:
+    name: Release Linux ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: x64
+            runner: ubuntu-22.04
+            deb_arch: amd64
+            rpm_arch: x86_64
+            artifact: dist-linux-x64
+          - name: arm64
+            runner: ubuntu-22.04-arm
+            deb_arch: arm64
+            rpm_arch: aarch64
+            artifact: dist-linux-arm64
 
     steps:
       - name: Checkout
@@ -56,7 +70,10 @@ jobs:
           if [ "$VERSION" = "$GITHUB_REF_NAME" ] || [ -z "$VERSION" ]; then
             VERSION="$(cargo metadata --manifest-path daemon/Cargo.toml --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "livedesk-daemon") | .version')"
           fi
-          VERSION="$VERSION" scripts/package-linux.sh
+          VERSION="$VERSION" \
+            ARCH_DEB="${{ matrix.deb_arch }}" \
+            ARCH_RPM="${{ matrix.rpm_arch }}" \
+            scripts/package-linux.sh
 
       - name: Inspect deb package
         run: |
@@ -142,14 +159,14 @@ jobs:
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: dist-linux-x64
+          name: ${{ matrix.artifact }}
           path: dist/
 
   publish-release:
     name: Publish package repositories & GitHub Release
     runs-on: ubuntu-22.04
     needs:
-      - release-linux-x64
+      - release-linux
     if: startsWith(github.ref, 'refs/tags/')
 
     steps:
@@ -232,6 +249,7 @@ jobs:
 
           mkdir -p apt/pool/main/l/livedesk
           mkdir -p apt/dists/stable/main/binary-amd64
+          mkdir -p apt/dists/stable/main/binary-arm64
           rm -rf apps/livedesk
           mkdir -p apps/livedesk
 
@@ -241,8 +259,8 @@ jobs:
           Livedesk is a live video wallpaper app for GNOME. It includes a GNOME Shell native background patch, a GStreamer daemon, and a GTK/Libadwaita configuration app.
           EOF
 
-          cp "$WORK_DIR"/artifacts/dist-linux-x64/livedesk_*.deb apt/pool/main/l/livedesk/
-          cp "$WORK_DIR"/artifacts/dist-linux-x64/livedesk_*.deb.asc apt/pool/main/l/livedesk/ 2>/dev/null || true
+          find "$WORK_DIR"/artifacts -path '*/livedesk_*.deb' -exec cp {} apt/pool/main/l/livedesk/ \;
+          find "$WORK_DIR"/artifacts -path '*/livedesk_*.deb.asc' -exec cp {} apt/pool/main/l/livedesk/ \; 2>/dev/null || true
 
           prune_package_files 5 './apt/pool/main/l/livedesk/livedesk_*.deb'
 
@@ -250,13 +268,15 @@ jobs:
 
           dpkg-scanpackages --multiversion --arch amd64 pool > dists/stable/main/binary-amd64/Packages
           gzip -9fk dists/stable/main/binary-amd64/Packages
+          dpkg-scanpackages --multiversion --arch arm64 pool > dists/stable/main/binary-arm64/Packages
+          gzip -9fk dists/stable/main/binary-arm64/Packages
 
           apt-ftparchive \
             -o APT::FTPArchive::Release::Origin="TamKungZ_" \
             -o APT::FTPArchive::Release::Label="TamKungZ_ Packages" \
             -o APT::FTPArchive::Release::Suite="stable" \
             -o APT::FTPArchive::Release::Codename="stable" \
-            -o APT::FTPArchive::Release::Architectures="amd64" \
+            -o APT::FTPArchive::Release::Architectures="amd64 arm64" \
             -o APT::FTPArchive::Release::Components="main" \
             -o APT::FTPArchive::Release::Description="TamKungZ_ APT Package Repository" \
             release dists/stable > dists/stable/Release
@@ -289,28 +309,36 @@ jobs:
 
           cd "$SITE_DIR"
 
-          mkdir -p rpm/x86_64
-          cp "$WORK_DIR"/artifacts/dist-linux-x64/livedesk-*.rpm rpm/x86_64/
-          cp "$WORK_DIR"/artifacts/dist-linux-x64/livedesk-*.rpm.asc rpm/x86_64/ 2>/dev/null || true
+          mkdir -p rpm/x86_64 rpm/aarch64
+          find "$WORK_DIR"/artifacts/dist-linux-x64 -name 'livedesk-*.rpm' -exec cp {} rpm/x86_64/ \;
+          find "$WORK_DIR"/artifacts/dist-linux-x64 -name 'livedesk-*.rpm.asc' -exec cp {} rpm/x86_64/ \; 2>/dev/null || true
+          find "$WORK_DIR"/artifacts/dist-linux-arm64 -name 'livedesk-*.rpm' -exec cp {} rpm/aarch64/ \;
+          find "$WORK_DIR"/artifacts/dist-linux-arm64 -name 'livedesk-*.rpm.asc' -exec cp {} rpm/aarch64/ \; 2>/dev/null || true
 
           prune_package_files 5 './rpm/x86_64/livedesk-*.rpm'
+          prune_package_files 5 './rpm/aarch64/livedesk-*.rpm'
 
           createrepo_c rpm/x86_64
+          createrepo_c rpm/aarch64
 
           if [ -n "${GPG_PASSPHRASE:-}" ]; then
-            gpg --batch --yes \
-              --pinentry-mode loopback \
-              --passphrase "$GPG_PASSPHRASE" \
-              --default-key "$GPG_FINGERPRINT" \
-              --detach-sign \
-              --armor \
-              rpm/x86_64/repodata/repomd.xml
+            for repomd in rpm/x86_64/repodata/repomd.xml rpm/aarch64/repodata/repomd.xml; do
+              gpg --batch --yes \
+                --pinentry-mode loopback \
+                --passphrase "$GPG_PASSPHRASE" \
+                --default-key "$GPG_FINGERPRINT" \
+                --detach-sign \
+                --armor \
+                "$repomd"
+            done
           else
-            gpg --batch --yes \
-              --default-key "$GPG_FINGERPRINT" \
-              --detach-sign \
-              --armor \
-              rpm/x86_64/repodata/repomd.xml
+            for repomd in rpm/x86_64/repodata/repomd.xml rpm/aarch64/repodata/repomd.xml; do
+              gpg --batch --yes \
+                --default-key "$GPG_FINGERPRINT" \
+                --detach-sign \
+                --armor \
+                "$repomd"
+            done
           fi
 
           if [ -f scripts/build_site.py ]; then
@@ -334,7 +362,7 @@ jobs:
         run: |
           set -eux
           mkdir -p release-assets
-          cp artifacts/dist-linux-x64/* release-assets/
+          find artifacts -mindepth 2 -maxdepth 2 -type f -exec cp {} release-assets/ \;
           rm -f release-assets/SHA256SUMS release-assets/SHA256SUMS.asc
           ( cd release-assets && sha256sum * > SHA256SUMS )
 
