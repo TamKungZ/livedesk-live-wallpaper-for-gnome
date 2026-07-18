@@ -166,7 +166,6 @@ start_daemon() {
     systemctl --user daemon-reload
 
     info "Starting Livedesk daemon"
-    systemctl --user unmask livedesk-daemon.service >/dev/null 2>&1 || true
     systemctl --user enable --now livedesk-daemon.service
   else
     warn "systemctl was not found; start livedesk-daemon manually."

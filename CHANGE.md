@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Fixed service mode and autostart toggles to stop using `systemctl mask`, which fails when the user unit file exists.
+- Added detailed app-side command logging to `~/.cache/livedesk/livedesk.log` and the Background Service settings page.
+
 ## 1.0.0
 
 - Replaced the GNOME Shell extension runtime with a GNOME Shell native background overlay.

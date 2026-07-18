@@ -15,6 +15,7 @@ const DBUS_PATH = '/me/tamkungz/Livedesk';
 const CONFIG_DIR = GLib.build_filenamev([GLib.get_user_config_dir(), 'livedesk']);
 const CONFIG_PATH = GLib.build_filenamev([CONFIG_DIR, 'config.json']);
 const CACHE_DIR = GLib.build_filenamev([GLib.get_user_cache_dir(), 'livedesk']);
+const LOG_PATH = GLib.build_filenamev([CACHE_DIR, 'livedesk.log']);
 const THUMB_DIR = GLib.build_filenamev([CACHE_DIR, 'thumbnails']);
 const TILE_WIDTH = 210;
 const TILE_HEIGHT = 154;
@@ -191,18 +192,7 @@ function thumbnailPathForUri(uri) {
 }
 
 function runCommand(args) {
-    try {
-        const [ok, , , status] = GLib.spawn_sync(
-            null,
-            args,
-            null,
-            GLib.SpawnFlags.SEARCH_PATH,
-            null
-        );
-        return ok && status === 0;
-    } catch (_) {
-        return false;
-    }
+    return runCommandWithOutput(args).ok;
 }
 
 function runCommandWithOutput(args) {
@@ -228,6 +218,24 @@ function runCommandWithOutput(args) {
             status: -1,
         };
     }
+}
+
+function appendLog(message) {
+    const stamp = GLib.DateTime.new_now_local().format('%Y-%m-%d %H:%M:%S');
+    const line = `[${stamp}] ${message}\n`;
+    try {
+        GLib.mkdir_with_parents(CACHE_DIR, 0o755);
+        const file = Gio.File.new_for_path(LOG_PATH);
+        const stream = file.append_to(Gio.FileCreateFlags.NONE, null);
+        stream.write_all(new TextEncoder().encode(line), null);
+        stream.close(null);
+    } catch (_) {
+    }
+    print(`livedesk: ${message}`);
+}
+
+function commandLine(args) {
+    return args.map(arg => arg.includes(' ') ? `'${arg}'` : arg).join(' ');
 }
 
 function commandSucceeds(args) {
@@ -364,6 +372,7 @@ class LivedeskApp extends Adw.Application {
         this._buildActions();
         this._buildWindow();
         this._window.present();
+        appendLog('app started');
         GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
             this._bootstrapUserSession();
             return GLib.SOURCE_REMOVE;
@@ -636,6 +645,12 @@ class LivedeskApp extends Adw.Application {
         });
         group.add(this._setupStatusRow);
 
+        this._lastActionRow = new Adw.ActionRow({
+            title: 'Last action',
+            subtitle: `Log file: ${LOG_PATH}`,
+        });
+        group.add(this._lastActionRow);
+
         return page;
     }
 
@@ -720,15 +735,21 @@ class LivedeskApp extends Adw.Application {
     }
 
     _bootstrapUserSession() {
+        this._logAction('Checking user session services');
         if (programExists('systemctl')) {
-            runCommand(['systemctl', '--user', 'daemon-reload']);
+            this._runLoggedCommand(['systemctl', '--user', 'daemon-reload']);
             if (!this._config.service_mode_disabled) {
-                runCommand(['systemctl', '--user', 'unmask', 'livedesk-daemon.service']);
-                if (!this._config.autostart_disabled)
-                    runCommand(['systemctl', '--user', 'enable', 'livedesk-daemon.service']);
-                runCommand(['systemctl', '--user', 'start', 'livedesk-daemon.service']);
-                if (this._config.autostart_disabled)
-                    runCommand(['systemctl', '--user', 'mask', 'livedesk-daemon.service']);
+                if (!this._config.autostart_disabled) {
+                    if (commandSucceeds(['systemctl', '--user', 'is-enabled', '--quiet', 'livedesk-daemon.service']))
+                        this._logAction('Autostart already enabled');
+                    else
+                        this._runLoggedCommand(['systemctl', '--user', 'enable', 'livedesk-daemon.service']);
+                }
+
+                if (commandSucceeds(['systemctl', '--user', 'is-active', '--quiet', 'livedesk-daemon.service']))
+                    this._logAction('Livedesk daemon already running');
+                else
+                    this._runLoggedCommand(['systemctl', '--user', 'start', 'livedesk-daemon.service']);
             }
         }
 
@@ -812,9 +833,11 @@ class LivedeskApp extends Adw.Application {
     }
 
     _runSetupHelper() {
+        this._logAction('Running livedesk-setup');
         const result = programExists('livedesk-setup')
             ? runCommandWithOutput(['livedesk-setup'])
             : {ok: false, stdout: '', stderr: 'livedesk-setup was not found in PATH.', status: -1};
+        this._logCommandResult(['livedesk-setup'], result);
 
         if (result.ok) {
             this._config.service_mode_disabled = false;
@@ -1130,16 +1153,14 @@ class LivedeskApp extends Adw.Application {
 
     _setServiceActive(active) {
         try {
+            this._logAction(active ? 'Enabling service mode' : 'Disabling service mode');
             this._config.service_mode_disabled = !active;
             this._saveConfigOnly();
             if (active) {
-                runCommand(['systemctl', '--user', 'unmask', 'livedesk-daemon.service']);
-                runCommand(['systemctl', '--user', 'start', 'livedesk-daemon.service']);
-                if (this._config.autostart_disabled)
-                    runCommand(['systemctl', '--user', 'mask', 'livedesk-daemon.service']);
+                this._runLoggedCommand(['systemctl', '--user', 'start', 'livedesk-daemon.service']);
                 this._connectProxy();
             } else {
-                runCommand(['systemctl', '--user', 'stop', 'livedesk-daemon.service']);
+                this._runLoggedCommand(['systemctl', '--user', 'stop', 'livedesk-daemon.service']);
             }
             this._refreshSetupStatus();
         } catch (e) {
@@ -1149,26 +1170,13 @@ class LivedeskApp extends Adw.Application {
 
     _setAutostartActive(active) {
         try {
+            this._logAction(active ? 'Enabling autostart' : 'Disabling autostart');
             this._config.autostart_disabled = !active;
             this._saveConfigOnly();
             if (active) {
-                runCommand(['systemctl', '--user', 'unmask', 'livedesk-daemon.service']);
-                GLib.spawn_async(
-                    null,
-                    ['systemctl', '--user', 'enable', 'livedesk-daemon.service'],
-                    null,
-                    GLib.SpawnFlags.SEARCH_PATH,
-                    null
-                );
+                this._runLoggedCommand(['systemctl', '--user', 'enable', 'livedesk-daemon.service']);
             } else {
-                runCommand(['systemctl', '--user', 'disable', 'livedesk-daemon.service']);
-                GLib.spawn_async(
-                    null,
-                    ['systemctl', '--user', 'mask', 'livedesk-daemon.service'],
-                    null,
-                    GLib.SpawnFlags.SEARCH_PATH,
-                    null
-                );
+                this._runLoggedCommand(['systemctl', '--user', 'disable', 'livedesk-daemon.service']);
             }
             this._refreshSetupStatus();
         } catch (e) {
@@ -1286,6 +1294,30 @@ class LivedeskApp extends Adw.Application {
             license_type: Gtk.License.GPL_3_0,
         });
         about.present();
+    }
+
+    _logAction(message) {
+        appendLog(message);
+        if (this._lastActionRow)
+            this._lastActionRow.subtitle = message;
+    }
+
+    _logCommandResult(args, result) {
+        const detail = [
+            `$ ${commandLine(args)}`,
+            `status=${result.status} ok=${result.ok}`,
+            result.stdout.trim() ? `stdout: ${result.stdout.trim()}` : '',
+            result.stderr.trim() ? `stderr: ${result.stderr.trim()}` : '',
+        ].filter(Boolean).join('\n');
+        appendLog(detail);
+        if (this._lastActionRow)
+            this._lastActionRow.subtitle = detail;
+    }
+
+    _runLoggedCommand(args) {
+        const result = runCommandWithOutput(args);
+        this._logCommandResult(args, result);
+        return result.ok;
     }
 
     _showError(message) {
