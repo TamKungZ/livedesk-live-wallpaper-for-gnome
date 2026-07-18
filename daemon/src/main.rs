@@ -63,6 +63,8 @@ fn load_config() -> Config {
 }
 
 fn main() -> Result<()> {
+    let conn = dbus_iface::claim_bus_name()
+        .context("failed to claim me.tamkungz.Livedesk on the session bus (already running?)")?;
     let config = load_config();
     let mut monitors = HashMap::new();
 
@@ -82,8 +84,7 @@ fn main() -> Result<()> {
 
     // Blocks forever, dispatching D-Bus calls; Ctrl+C / SIGTERM just kill
     // the process (GStreamer pipelines are torn down via Drop).
-    dbus_iface::serve(service)
-        .context("failed to claim me.tamkungz.Livedesk on the session bus (already running?)")?;
+    dbus_iface::serve_on_connection(conn, service).context("lost Livedesk D-Bus service")?;
 
     Ok(())
 }

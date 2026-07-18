@@ -90,10 +90,7 @@ impl WallpaperService {
     }
 }
 
-/// Registers the interface on a Crossroads instance and blocks serving
-/// requests forever (call this from `main`; it does not return under
-/// normal operation).
-pub fn serve(service: WallpaperService) -> anyhow::Result<()> {
+pub fn claim_bus_name() -> anyhow::Result<Connection> {
     let conn = Connection::new_session()?;
     let name_reply = conn.request_name("me.tamkungz.Livedesk", false, false, true)?;
     match name_reply {
@@ -102,7 +99,13 @@ pub fn serve(service: WallpaperService) -> anyhow::Result<()> {
             bail!("another livedesk-daemon already owns me.tamkungz.Livedesk");
         }
     }
+    Ok(conn)
+}
 
+/// Registers the interface on a Crossroads instance and blocks serving
+/// requests forever (call this from `main`; it does not return under
+/// normal operation).
+pub fn serve_on_connection(conn: Connection, service: WallpaperService) -> anyhow::Result<()> {
     let mut cr = Crossroads::new();
 
     let iface_token = cr.register("me.tamkungz.Livedesk", |b| {
@@ -196,6 +199,12 @@ pub fn serve(service: WallpaperService) -> anyhow::Result<()> {
     // cr.serve only returns on connection loss; give the caller a chance
     // to decide whether that's fatal.
     Ok(())
+}
+
+#[allow(dead_code)]
+pub fn serve(service: WallpaperService) -> anyhow::Result<()> {
+    let conn = claim_bus_name()?;
+    serve_on_connection(conn, service)
 }
 
 /// Convenience used by `main` for a graceful poll-based loop when you'd
