@@ -1,16 +1,5 @@
 # Changelog
 
-## Unreleased
-
-- Fixed service mode and autostart toggles to stop using `systemctl mask`, which fails when the user unit file exists.
-- Added detailed app-side command logging to `~/.cache/livedesk/livedesk.log` and the Background Service settings page.
-- Added terminal-visible action logging for app buttons, setup commands, daemon calls, and still-frame generation.
-- Added first-frame static PNG fallback generation for GNOME surfaces that still need an image wallpaper.
-- Added a separate Ayatana/AppIndicator tray helper with quick app, play, pause, restore, and log actions.
-- Fixed black GNOME/Zorin overview backgrounds by attaching the native live actor to workspace preview backgrounds as well as the desktop background.
-- Reduced overview flicker by making non-desktop background actors passive frame readers instead of daemon controllers.
-- Added a Mutter-native roadmap for replacing the Shell actor overlay with a real background content renderer.
-
 ## 1.0.0
 
 - Replaced the GNOME Shell extension runtime with a GNOME Shell native background overlay.
@@ -22,6 +11,14 @@
 - Removed the 0.1.x GNOME Shell extension sources and extension zip builder from the active code path.
 - Updated Debian/RPM packaging to install the native background files and schema instead of extension variants.
 - Rewrote user documentation around the native wallpaper flow and moved 0.1.x extension notes into legacy documentation.
+- Fixed service mode and autostart toggles to stop using `systemctl mask`, which fails when the user unit file exists.
+- Added detailed app-side command logging to `~/.cache/livedesk/livedesk.log` and the Background Service settings page.
+- Added terminal-visible action logging for app buttons, setup commands, daemon calls, and still-frame generation.
+- Added first-frame static PNG fallback generation for GNOME surfaces that still need an image wallpaper.
+- Added a separate Ayatana/AppIndicator tray helper with quick app, play, pause, restore, and log actions.
+- Fixed black GNOME/Zorin overview backgrounds by attaching the native live actor to workspace preview backgrounds as well as the desktop background.
+- Reduced overview flicker by making non-desktop background actors passive frame readers instead of daemon controllers.
+- Added a Mutter-native roadmap for replacing the Shell actor overlay with a real background content renderer.
 
 ## 0.1.3
 
